@@ -1,5 +1,6 @@
 import LogForm from "@/components/LogForm";
 import DateTimeDisplay from "@/components/DateTimeDisplay";
+import StartupLabBrand from "@/components/StartupLabBrand";
 import Link from "next/link";
 
 export default function Home() {
@@ -12,20 +13,7 @@ export default function Home() {
 
       {/* Top Navigation */}
       <header className="absolute top-0 left-0 right-0 flex flex-wrap items-center justify-between gap-3 border-b border-surface-200 bg-white/70 px-4 py-3 backdrop-blur-md z-10 shadow-sm sm:px-6 sm:py-4">
-        <div className="flex items-center gap-3">
-          {/* StartupLab Logo Icon - uses StartupLab's trademark gradient theme */}
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-brand-blue-600 to-brand-cyan shadow-sm">
-            <span className="font-display text-lg font-black text-white">S</span>
-          </div>
-          <div>
-            <span className="font-display font-extrabold tracking-tight text-ink-900">
-              Startup<span className="text-brand-blue-600">Lab</span>
-            </span>
-            <span className="ml-2 rounded-full bg-brand-blue-100/60 border border-brand-blue-200/50 px-2 py-0.5 text-[10px] font-bold text-brand-blue-600 tracking-wider">
-              KIOSK
-            </span>
-          </div>
-        </div>
+        <StartupLabBrand />
 
         <DateTimeDisplay />
 
@@ -41,10 +29,10 @@ export default function Home() {
       <div className="z-10 flex w-full flex-col items-center gap-8 mt-12">
         <div className="text-center animate-fadeIn">
           <h1 className="font-display text-4xl font-extrabold tracking-tight text-ink-900 sm:text-5xl">
-            StartupLab Office Logging
+            StartupLab Business Center Office Logging
           </h1>
           <p className="mt-3 text-sm text-ink-500 max-w-md mx-auto leading-relaxed">
-            Welcome to the StartupLab workspace. Please select an action below to begin your logging session.
+            Welcome to the StartupLab Business Center workspace. Please select an action below to begin your logging session.
           </p>
         </div>
 
@@ -53,7 +41,7 @@ export default function Home() {
 
       {/* Privacy-Compliant Footer */}
       <footer className="absolute bottom-4 text-center text-ink-400 text-[11px] pointer-events-none font-medium tracking-wide">
-        StartupLab Kiosk System • Privacy & GDPR Compliant • Powered by Supabase
+        StartupLab Business Center Kiosk System • Privacy & GDPR Compliant • Powered by Supabase
       </footer>
     </main>
   );
