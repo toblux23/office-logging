@@ -39,11 +39,11 @@ export default function Home() {
       {/* Top Navigation */}
       <header className="absolute top-0 left-0 right-0 flex flex-wrap items-center justify-between gap-3 border-b border-surface-200 bg-white/70 px-4 py-3 backdrop-blur-md z-10 shadow-sm sm:px-6 sm:py-4">
         <div className="flex items-center gap-3">
-          {/* StartupLab Logo Icon - uses StartupLab's trademark gradient theme */}
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-brand-blue-600 to-brand-blue-500 shadow-sm">
-            <span className="font-display text-lg font-black text-white">S</span>
+          {/* Company logo image */}
+          <div className="relative h-14 w-14 sm:h-20 sm:w-20 flex-shrink-0">
+            <Image src={CompanyLogo} alt="Company logo" fill className="object-contain" />
           </div>
-          <div className="relative h-20 w-[240px] sm:h-24 sm:w-[150px] -translate-x-3 sm:-translate-x-4">
+          <div className="relative h-20 w-[240px] sm:h-24 sm:w-[150px] -translate-x-3 sm:-translate-x-5">
             <Image src={CompanyText} alt="StartupLab Business Center" fill className="object-contain" />
           </div>
         </div>
