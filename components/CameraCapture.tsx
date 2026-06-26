@@ -111,7 +111,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
         )}
         
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-rose-700 bg-rose-50 border border-rose-100">
+          <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-brand-blue-700 bg-brand-blue-50 border border-brand-blue-100">
             ⚠️ {error}
           </div>
         )}

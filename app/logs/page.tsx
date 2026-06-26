@@ -18,9 +18,9 @@ const TYPE_LABEL: Record<LogType, string> = {
 };
 
 const TYPE_BADGE: Record<LogType, string> = {
-  login: "bg-emerald-50 border border-emerald-100 text-emerald-700",
-  break: "bg-amber-50 border border-amber-100 text-amber-700",
-  logout: "bg-rose-50 border border-rose-100 text-rose-700",
+  login: "bg-brand-blue-50 border border-brand-blue-100 text-brand-blue-700",
+  break: "bg-brand-blue-50 border border-brand-blue-100 text-brand-blue-700",
+  logout: "bg-brand-blue-50 border border-brand-blue-100 text-brand-blue-700",
 };
 
 export default function LogsPage() {
@@ -172,7 +172,7 @@ export default function LogsPage() {
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 bg-gradient-to-b from-hero-grad-a to-hero-grad-b px-4 py-12 text-ink-700 font-sans">
       {/* Decorative moving gradient blobs */}
       <div className="absolute top-12 left-1/4 h-[250px] w-[250px] rounded-full bg-brand-blue-200/20 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-12 right-1/4 h-[250px] w-[250px] rounded-full bg-brand-cyan/15 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-12 right-1/4 h-[250px] w-[250px] rounded-full bg-brand-blue-300/15 blur-[120px] pointer-events-none" />
 
       <div className="z-10 flex items-center justify-between border-b border-surface-200 pb-5">
         <div>
@@ -195,7 +195,7 @@ export default function LogsPage() {
           <button
             type="button"
             onClick={signOut}
-            className="rounded-xl border border-surface-200 bg-white px-4 py-2 text-xs font-bold text-ink-700 hover:bg-surface-50 hover:text-rose-600 hover:border-rose-200 transition shadow-sm cursor-pointer"
+            className="rounded-xl border border-surface-200 bg-white px-4 py-2 text-xs font-bold text-ink-700 hover:bg-brand-blue-50 hover:text-brand-blue-600 hover:border-brand-blue-200 transition shadow-sm cursor-pointer"
           >
             Sign Out
           </button>
@@ -223,7 +223,7 @@ export default function LogsPage() {
       )}
 
       {error && (
-        <p className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm font-bold text-rose-700">
+        <p className="rounded-xl bg-brand-blue-50 border border-brand-blue-200 px-4 py-3 text-sm font-bold text-brand-blue-700">
           ⚠️ {error}
         </p>
       )}
@@ -453,8 +453,9 @@ export default function LogsPage() {
                       </td>
                       <td className="px-5 py-3.5">
                         <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider border ${
-                          audit.action === "SIGN_IN" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                          audit.action === "FAILED_SIGN_IN" ? "bg-rose-50 text-rose-700 border-rose-200" :
+                          audit.action === "SIGN_IN" ? "bg-brand-blue-50 text-brand-blue-700 border-brand-blue-200" :
+                          audit.action === "SIGN_IN" ? "bg-brand-blue-50 text-brand-blue-700 border-brand-blue-200" :
+                          audit.action === "FAILED_SIGN_IN" ? "bg-brand-blue-50 text-brand-blue-700 border-brand-blue-200" :
                           "bg-brand-blue-50 text-brand-blue-700 border-brand-blue-200"
                         }`}>
                           {audit.action}

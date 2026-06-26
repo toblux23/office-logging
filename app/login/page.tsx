@@ -102,7 +102,7 @@ export default function LoginPage() {
     <main className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-hero-grad-a to-hero-grad-b px-4 py-12 text-ink-700">
       {/* Decorative moving gradient blobs */}
       <div className="absolute top-1/4 left-1/4 h-[300px] w-[300px] rounded-full bg-brand-blue-200/25 blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 h-[300px] w-[300px] rounded-full bg-brand-cyan/20 blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 h-[300px] w-[300px] rounded-full bg-brand-blue-300/20 blur-[100px] pointer-events-none" />
 
       <div className="z-10 text-center mb-6 animate-fadeIn">
         <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink-900">
@@ -180,7 +180,7 @@ export default function LoginPage() {
         )}
 
         {error && (
-          <p className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-center text-xs font-bold text-rose-700 animate-fadeIn">
+          <p className="rounded-xl bg-brand-blue-50 border border-brand-blue-200 px-4 py-3 text-center text-xs font-bold text-brand-blue-700 animate-fadeIn">
             ⚠️ {error}
           </p>
         )}

@@ -5,16 +5,16 @@ import Link from "next/link";
 export default function Home() {
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-hero-grad-a to-hero-grad-b px-4 py-12 font-sans text-ink-700">
-      {/* Decorative moving gradient blobs - Soft light blue & cyan accents */}
+      {/* Decorative moving gradient blobs - Soft blue accents */}
       <div className="absolute -top-40 -left-40 h-[450px] w-[450px] rounded-full bg-brand-blue-200/25 blur-[120px] pointer-events-none animate-pulse" />
-      <div className="absolute -bottom-40 -right-40 h-[450px] w-[450px] rounded-full bg-brand-cyan/20 blur-[120px] pointer-events-none animate-pulse" />
+      <div className="absolute -bottom-40 -right-40 h-[450px] w-[450px] rounded-full bg-brand-blue-300/20 blur-[120px] pointer-events-none animate-pulse" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[600px] w-[600px] rounded-full bg-brand-blue-100/15 blur-[160px] pointer-events-none" />
 
       {/* Top Navigation */}
       <header className="absolute top-0 left-0 right-0 flex flex-wrap items-center justify-between gap-3 border-b border-surface-200 bg-white/70 px-4 py-3 backdrop-blur-md z-10 shadow-sm sm:px-6 sm:py-4">
         <div className="flex items-center gap-3">
           {/* StartupLab Logo Icon - uses StartupLab's trademark gradient theme */}
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-brand-blue-600 to-brand-cyan shadow-sm">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-brand-blue-600 to-brand-blue-500 shadow-sm">
             <span className="font-display text-lg font-black text-white">S</span>
           </div>
           <div>

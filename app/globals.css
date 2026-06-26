@@ -12,7 +12,7 @@
   --color-brand-blue-200: #ABC0F9;
   --color-brand-blue-100: #DBEAFE;
   --color-brand-blue-50: #EEF2FF;
-  --color-brand-cyan: #37BCF1;
+  --color-brand-blue-400: #2F73F3;
   --color-brand-ink: #2D2D2D;
   
   --color-ink-900: #0F172A;
@@ -26,8 +26,8 @@
   --color-surface-100: #F1F5F9;
   --color-surface-200: #E2E8F0;
   
-  --color-hero-grad-a: #F7FBFF;
-  --color-hero-grad-b: #EEF2FF;
+  --color-hero-grad-a: #F6FAFF;
+  --color-hero-grad-b: #EAF2FF;
 }
 
 :root {
