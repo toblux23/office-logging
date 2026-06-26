@@ -1,8 +1,34 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import LogForm from "@/components/LogForm";
 import DateTimeDisplay from "@/components/DateTimeDisplay";
 import Link from "next/link";
+import CompanyLogo from "@/images/Company_Logo.png";
+import CompanyText from "@/images/Company_Text_Black.png";
 
 export default function Home() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const dateString = now.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const timeString = now.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-hero-grad-a to-hero-grad-b px-4 py-12 font-sans text-ink-700">
       {/* Decorative moving gradient blobs - Soft blue accents */}
@@ -13,17 +39,12 @@ export default function Home() {
       {/* Top Navigation */}
       <header className="absolute top-0 left-0 right-0 flex flex-wrap items-center justify-between gap-3 border-b border-surface-200 bg-white/70 px-4 py-3 backdrop-blur-md z-10 shadow-sm sm:px-6 sm:py-4">
         <div className="flex items-center gap-3">
-          {/* StartupLab Logo Icon - uses StartupLab's trademark gradient theme */}
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-brand-blue-600 to-brand-blue-500 shadow-sm">
-            <span className="font-display text-lg font-black text-white">S</span>
+          {/* Company logo image */}
+          <div className="relative h-14 w-14 sm:h-20 sm:w-20 flex-shrink-0">
+            <Image src={CompanyLogo} alt="Company logo" fill className="object-contain" />
           </div>
-          <div>
-            <span className="font-display font-extrabold tracking-tight text-ink-900">
-              Startup<span className="text-brand-blue-600">Lab</span>
-            </span>
-            <span className="ml-2 rounded-full bg-brand-blue-100/60 border border-brand-blue-200/50 px-2 py-0.5 text-[10px] font-bold text-brand-blue-600 tracking-wider">
-              KIOSK
-            </span>
+          <div className="relative h-20 w-[240px] sm:h-24 sm:w-[150px] -translate-x-3 sm:-translate-x-5">
+            <Image src={CompanyText} alt="StartupLab Business Center" fill className="object-contain" />
           </div>
         </div>
 
