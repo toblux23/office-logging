@@ -142,17 +142,22 @@ export async function createLog(
     data: { publicUrl },
   } = supabase.storage.from(BUCKET).getPublicUrl(path);
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("logs")
-    .insert({ name: trimmedName, type, role, image_url: publicUrl })
-    .select()
-    .single();
+    .insert({ name: trimmedName, type, role, image_url: publicUrl });
 
   if (error) {
     throw new Error(`Saving log failed: ${error.message}`);
   }
 
-  return data as LogEntry;
+  return {
+    id: crypto.randomUUID(),
+    name: trimmedName,
+    type,
+    role,
+    image_url: publicUrl,
+    created_at: new Date().toISOString(),
+  } as LogEntry;
 }
 
 /**
@@ -215,16 +220,19 @@ export async function createMultipleLogs(
       image_url: publicUrl
     }));
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("logs")
-    .insert(rows)
-    .select();
+    .insert(rows);
 
   if (error) {
     throw new Error(`Saving group logs failed: ${error.message}`);
   }
 
-  return data as LogEntry[];
+  return rows.map(r => ({
+    id: crypto.randomUUID(),
+    ...r,
+    created_at: new Date().toISOString(),
+  })) as LogEntry[];
 }
 
 /** Fetch the most recent log entries, newest first. */
