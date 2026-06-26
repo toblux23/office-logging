@@ -40,7 +40,7 @@ export default function DateTimeDisplay() {
 
   return (
     <div
-      className="order-3 flex w-full items-center justify-center rounded-xl border border-brand-blue-100 bg-white/80 px-3 py-2 text-center shadow-sm sm:order-none sm:w-auto sm:min-w-[280px]"
+      className="order-3 flex w-full items-center justify-center rounded-xl border border-brand-blue-100 bg-white/80 px-3 py-2 text-center shadow-sm sm:order-none sm:w-auto sm:min-w-[280px] sm:absolute sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2"
       aria-live="polite"
       aria-label={`Current date and time: ${displayDate}, ${displayTime}`}
     >
