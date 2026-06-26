@@ -1,8 +1,55 @@
-import { supabase, type LogEntry, type LogType, type UserRole, type AdminActivityLog, IS_MOCK } from "./supabase";
+import { supabase, type LogEntry, type LogType, type UserRole, type UserState, type AdminActivityLog, type User, IS_MOCK } from "./supabase";
 
 const BUCKET = "log-images";
 
-/** Convert a base64 data URL (from the webcam) into a Blob for upload. */
+// --- State machine -------------------------------------------------
+const ALLOWED_TRANSITIONS: Record<string, LogType[]> = {
+  unknown: ["login"],
+  out_of_office: ["login"],
+  in_office: ["logout", "break"],
+  on_break: ["login", "logout"],
+};
+
+const NEXT_STATE: Record<LogType, UserState> = {
+  login: "in_office",
+  logout: "out_of_office",
+  break: "on_break",
+};
+
+const ACTION_LABELS: Record<LogType, string> = {
+  login: "log in",
+  logout: "log out",
+  break: "go on break",
+};
+
+const STATE_LABELS: Record<string, string> = {
+  unknown: "out of office",
+  out_of_office: "out of office",
+  in_office: "in office",
+  on_break: "on break",
+};
+
+function assertAllowedAction(currentState: string, type: LogType, name: string, role?: UserRole): void {
+  const allowed = ALLOWED_TRANSITIONS[currentState];
+  if (!allowed?.includes(type)) {
+    throw new Error(
+      `${name} can't ${ACTION_LABELS[type]} (currently ${STATE_LABELS[currentState] ?? currentState}).`
+    );
+  }
+  if (currentState === "unknown" && type === "login" && role !== "guest") {
+    throw new Error(`${name} is not registered. Only guests can be created on first login.`);
+  }
+}
+
+async function validateTransition(name: string, type: LogType, role: UserRole): Promise<UserState> {
+  const { data, error } = await supabase.rpc("get_user_state", { p_name: name });
+  if (error) throw new Error(error.message);
+  const currentState = (data ?? "unknown") as string;
+  assertAllowedAction(currentState, type, name, role);
+  return NEXT_STATE[type];
+}
+
+// --- Mock helpers --------------------------------------------------
 function dataUrlToBlob(dataUrl: string): Blob {
   const [header, base64] = dataUrl.split(",");
   const mime = header.match(/:(.*?);/)?.[1] ?? "image/jpeg";
@@ -27,6 +74,14 @@ function getMockLogs(): LogEntry[] {
       // Migrate if it's the old 3-item flat list without historical streaks
       if (logsList.length === 3 && logsList.every(l => ["Alice Vance", "Bob Smith", "Charlie Brown"].includes(l.name))) {
         needsRepopulate = true;
+      } else {
+        // Migrate old state values (present→in_office, absent→out_of_office)
+        logsList = logsList.map(l => {
+          const oldState = l.state as string;
+          if (oldState === "present") return { ...l, state: "in_office" as UserState };
+          if (oldState === "absent") return { ...l, state: "out_of_office" as UserState };
+          return l;
+        });
       }
     } catch (e) {
       needsRepopulate = true;
@@ -46,6 +101,7 @@ function getMockLogs(): LogEntry[] {
         name: "Alice Vance",
         type: "login",
         role: "admin",
+        state: "in_office",
         image_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
         created_at: new Date(nowMs - 86400000 * i - 3600000 * 2).toISOString(),
       });
@@ -58,6 +114,7 @@ function getMockLogs(): LogEntry[] {
         name: "Bob Smith",
         type: "login",
         role: "staff",
+        state: "in_office",
         image_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
         created_at: new Date(nowMs - 86400000 * i - 3600000 * 4).toISOString(),
       });
@@ -70,6 +127,7 @@ function getMockLogs(): LogEntry[] {
         name: "Charlie Brown",
         type: "login",
         role: "intern",
+        state: "in_office",
         image_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
         created_at: new Date(nowMs - 86400000 * i - 3600000 * 6).toISOString(),
       });
@@ -84,6 +142,29 @@ function getMockLogs(): LogEntry[] {
 function saveMockLogs(logs: LogEntry[]) {
   if (typeof window === "undefined") return;
   localStorage.setItem("office_logs", JSON.stringify(logs));
+}
+
+function getMockUsers(): User[] {
+  if (typeof window === "undefined") return [];
+  const stored = localStorage.getItem("office_users");
+  return stored ? JSON.parse(stored) : [];
+}
+
+function saveMockUsers(users: User[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("office_users", JSON.stringify(users));
+}
+
+function upsertMockUser(name: string, role: UserRole, state: UserState) {
+  const users = getMockUsers();
+  const idx = users.findIndex(u => u.name.toLowerCase() === name.toLowerCase());
+  const user: User = { name, role, state, updated_at: new Date().toISOString() };
+  if (idx >= 0) {
+    users[idx] = user;
+  } else {
+    users.push(user);
+  }
+  saveMockUsers(users);
 }
 
 function getMockActivityLogs(): AdminActivityLog[] {
@@ -112,19 +193,27 @@ export async function createLog(
   if (!imageDataUrl) throw new Error("Please capture a photo first.");
 
   if (IS_MOCK) {
+    const logs = getMockLogs();
+    const userLogs = logs.filter(l => l.name.toLowerCase() === trimmedName.toLowerCase());
+    const currentState = userLogs.length > 0 ? (userLogs[0].state ?? "unknown") : "unknown";
+    assertAllowedAction(currentState, type, trimmedName, role);
+    const nextState = NEXT_STATE[type];
     const newLog: LogEntry = {
       id: crypto.randomUUID(),
       name: trimmedName,
       type,
       role,
-      image_url: imageDataUrl, // Store base64 data url directly in offline mode
+      state: nextState,
+      image_url: imageDataUrl,
       created_at: new Date().toISOString(),
     };
-    const logs = getMockLogs();
     logs.unshift(newLog);
     saveMockLogs(logs);
+    upsertMockUser(trimmedName, role, nextState);
     return newLog;
   }
+
+  const nextState = await validateTransition(trimmedName, type, role);
 
   const blob = dataUrlToBlob(imageDataUrl);
   const safeName = trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -144,10 +233,20 @@ export async function createLog(
 
   const { error } = await supabase
     .from("logs")
-    .insert({ name: trimmedName, type, role, image_url: publicUrl });
+    .insert({ name: trimmedName, type, role, state: nextState, image_url: publicUrl });
 
   if (error) {
     throw new Error(`Saving log failed: ${error.message}`);
+  }
+
+  const { error: upsertError } = await supabase.rpc("upsert_user_state", {
+    p_name: trimmedName,
+    p_role: role,
+    p_state: nextState,
+  });
+
+  if (upsertError) {
+    console.error("Failed to update user state:", upsertError.message);
   }
 
   return {
@@ -155,6 +254,7 @@ export async function createLog(
     name: trimmedName,
     type,
     role,
+    state: nextState,
     image_url: publicUrl,
     created_at: new Date().toISOString(),
   } as LogEntry;
@@ -179,24 +279,41 @@ export async function createMultipleLogs(
     for (const person of people) {
       const trimmedName = person.name.trim();
       if (!trimmedName) continue;
+      const userLogs = logs.filter(l => l.name.toLowerCase() === trimmedName.toLowerCase());
+      const currentState = userLogs.length > 0 ? (userLogs[0].state ?? "unknown") : "unknown";
+      assertAllowedAction(currentState, type, trimmedName, person.role);
+      const nextState = NEXT_STATE[type];
       const newLog: LogEntry = {
         id: crypto.randomUUID(),
         name: trimmedName,
         type,
         role: person.role,
+        state: nextState,
         image_url: imageDataUrl,
         created_at: timestamp,
       };
       logs.unshift(newLog);
       createdLogs.push(newLog);
+      upsertMockUser(trimmedName, person.role, nextState);
     }
     saveMockLogs(logs);
     return createdLogs;
   }
 
   // Live Supabase path
+  const validPeople = people.filter(p => p.name.trim().length > 0);
+
+  // Validate all state transitions before doing expensive operations
+  const stateResults = await Promise.all(
+    validPeople.map(async p => ({
+      name: p.name.trim(),
+      role: p.role,
+      state: await validateTransition(p.name.trim(), type, p.role),
+    }))
+  );
+
   const blob = dataUrlToBlob(imageDataUrl);
-  const safeName = people[0].name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const safeName = stateResults[0].name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const path = `group-${safeName}/${type}-${Date.now()}.jpg`;
 
   const { error: uploadError } = await supabase.storage
@@ -211,14 +328,13 @@ export async function createMultipleLogs(
     data: { publicUrl },
   } = supabase.storage.from(BUCKET).getPublicUrl(path);
 
-  const rows = people
-    .filter(p => p.name.trim().length > 0)
-    .map(p => ({
-      name: p.name.trim(),
-      type,
-      role: p.role,
-      image_url: publicUrl
-    }));
+  const rows = stateResults.map(p => ({
+    name: p.name,
+    type,
+    role: p.role,
+    state: p.state,
+    image_url: publicUrl,
+  }));
 
   const { error } = await supabase
     .from("logs")
@@ -227,6 +343,20 @@ export async function createMultipleLogs(
   if (error) {
     throw new Error(`Saving group logs failed: ${error.message}`);
   }
+
+  // Upsert user states for each person
+  await Promise.all(
+    stateResults.map(p =>
+      (async () => {
+        const { error } = await supabase.rpc("upsert_user_state", {
+          p_name: p.name,
+          p_role: p.role,
+          p_state: p.state,
+        });
+        if (error) console.error(`Failed to update state for ${p.name}:`, error.message);
+      })()
+    )
+  );
 
   return rows.map(r => ({
     id: crypto.randomUUID(),

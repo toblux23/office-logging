@@ -14,15 +14,24 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export type LogType = "login" | "logout" | "break";
 export type UserRole = "staff" | "intern" | "guest" | "client" | "admin";
+export type UserState = "in_office" | "out_of_office" | "on_break";
 
 export interface LogEntry {
   id: string;
   name: string;
   type: LogType;
   role: UserRole;
+  state: UserState;
   image_url: string;
   created_at: string;
   badges?: string[]; // dynamically computed or stored badges (e.g., Early Bird, Streak Master, etc.)
+}
+
+export interface User {
+  name: string;
+  role: UserRole;
+  state: UserState;
+  updated_at: string;
 }
 
 export interface AdminActivityLog {

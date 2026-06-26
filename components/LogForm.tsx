@@ -220,7 +220,7 @@ export default function LogForm() {
 
       setStatus({
         kind: "success",
-        message: action === "login" ? "Checked In Successfully!" : action === "break" ? "Break Logged!" : "Checked Out Successfully!",
+        message: action === "login" ? "Logged In Successfully!" : action === "break" ? "Break Logged!" : "Logged Out Successfully!",
         welcomeCards
       });
 
