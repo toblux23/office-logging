@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createLog, createMultipleLogs } from "./logs";
+import { createLog, createMultipleLogs } from "../lib/logs";
 
 const DATA_URL = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
 

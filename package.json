@@ -4,6 +4,8 @@
   "main": "index.js",
   "scripts": {
     "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
