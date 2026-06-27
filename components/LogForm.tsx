@@ -229,28 +229,28 @@ export default function LogForm() {
         <p className="text-center text-xs font-bold uppercase tracking-wider text-ink-400">Choose Session Action</p>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <button type="button" onClick={() => chooseAction("login")} className="group flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-brand-blue-100 bg-brand-blue-50/30 px-4 py-8 text-center shadow-sm transition duration-200 hover:scale-102 hover:bg-brand-blue-50 active:scale-98">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-blue-500 text-white shadow-md shadow-brand-blue-100 transition group-hover:scale-110">
+          <button type="button" onClick={() => chooseAction("login")} className="group flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-[#0F8660]/20 bg-[#D1F0E6] px-4 py-8 text-center shadow-sm transition duration-200 hover:scale-102 hover:border-[#0F8660]/40 hover:shadow-md active:scale-98">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0F8660] text-white shadow-md transition group-hover:scale-110">
               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
             </div>
-            <span className="text-base font-extrabold text-ink-900">Log In</span>
-            <span className="text-xs font-medium text-ink-500">Start shift</span>
+            <span className="text-base font-extrabold text-[#1B5E3F]">Log In</span>
+            <span className="text-xs font-medium text-[#1B5E3F]/70">Start shift</span>
           </button>
 
-          <button type="button" onClick={() => chooseAction("break")} className="group flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-brand-blue-100 bg-brand-blue-50/30 px-4 py-8 text-center shadow-sm transition duration-200 hover:scale-102 hover:bg-brand-blue-50 active:scale-98">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-blue-500 text-white shadow-md shadow-brand-blue-100 transition group-hover:scale-110">
+          <button type="button" onClick={() => chooseAction("break")} className="group flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-[#8B6914]/20 bg-[#FFF9D6] px-4 py-8 text-center shadow-sm transition duration-200 hover:scale-102 hover:border-[#8B6914]/40 hover:shadow-md active:scale-98">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#8B6914] text-white shadow-md transition group-hover:scale-110">
               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="9" x2="9" y2="15"/><line x1="15" y1="9" x2="15" y2="15"/></svg>
             </div>
-            <span className="text-base font-extrabold text-ink-900">Take Break</span>
-            <span className="text-xs font-medium text-ink-500">Pause tracking</span>
+            <span className="text-base font-extrabold text-[#6B5A1F]">Take Break</span>
+            <span className="text-xs font-medium text-[#6B5A1F]/70">Pause tracking</span>
           </button>
 
-          <button type="button" onClick={() => chooseAction("logout")} className="group flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-brand-blue-100 bg-brand-blue-50/30 px-4 py-8 text-center shadow-sm transition duration-200 hover:scale-102 hover:bg-brand-blue-50 active:scale-98">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-blue-500 text-white shadow-md shadow-brand-blue-100 transition group-hover:scale-110">
+          <button type="button" onClick={() => chooseAction("logout")} className="group flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-[#A84452]/20 bg-[#FACDD2] px-4 py-8 text-center shadow-sm transition duration-200 hover:scale-102 hover:border-[#A84452]/40 hover:shadow-md active:scale-98">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#A84452] text-white shadow-md transition group-hover:scale-110">
               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             </div>
-            <span className="text-base font-extrabold text-ink-900">Log Out</span>
-            <span className="text-xs font-medium text-ink-500">Finish shift</span>
+            <span className="text-base font-extrabold text-[#7D3C47]">Log Out</span>
+            <span className="text-xs font-medium text-[#7D3C47]/70">Finish shift</span>
           </button>
         </div>
       </div>

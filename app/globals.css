@@ -28,6 +28,20 @@
   
   --color-hero-grad-a: #F6FAFF;
   --color-hero-grad-b: #EAF2FF;
+
+  --color-action-login-bg: #D1F0E6;
+  --color-action-login-icon: #0F8660;
+  --color-action-login-text: #1B5E3F;
+  --color-action-break-bg: #FFF9D6;
+  --color-action-break-icon: #8B6914;
+  --color-action-break-text: #6B5A1F;
+  --color-action-logout-bg: #FACDD2;
+  --color-action-logout-icon: #A84452;
+  --color-action-logout-text: #7D3C47;
+  
+  --color-boil-primary: #40C0FF;
+  --color-boil-secondary: #80C0FF;
+  --color-boil-accent: #C0FFFF;
 }
 
 :root {
@@ -77,4 +91,64 @@ body {
 
 .animate-bounceScale {
   animation: bounceScale 1.5s infinite ease-in-out;
+}
+
+@keyframes bubble {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-40px) scale(0.4);
+    opacity: 0;
+  }
+}
+
+@keyframes bubble-delay-1 {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-50px) scale(0.3);
+    opacity: 0;
+  }
+}
+
+@keyframes bubble-delay-2 {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-45px) scale(0.35);
+    opacity: 0;
+  }
+}
+
+@keyframes boilWater {
+  0%, 100% {
+    background-color: rgb(64, 192, 255, 0.3);
+  }
+  50% {
+    background-color: rgb(128, 192, 255, 0.4);
+  }
+}
+
+.animate-bubble {
+  animation: bubble 1.2s ease-out infinite;
+}
+
+.animate-bubble-delay-1 {
+  animation: bubble-delay-1 1.3s ease-out infinite;
+  animation-delay: 0.15s;
+}
+
+.animate-bubble-delay-2 {
+  animation: bubble-delay-2 1.1s ease-out infinite;
+  animation-delay: 0.3s;
+}
+
+.animate-boilWater {
+  animation: boilWater 1.5s ease-in-out infinite;
 }

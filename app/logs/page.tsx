@@ -41,9 +41,19 @@ export default function LogsPage() {
   const [dateTo, setDateTo] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [sortBy, setSortBy] = useState<SortKey>("date-desc");
+  const [roleFilter, setRoleFilter] = useState<"all" | "intern" | "staff" | "client" | "guest" | "admin">("all");
 
   // Row clicked to view in the popup.
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
+
+  // Registration form state
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [registerForm, setRegisterForm] = useState({
+    name: "",
+    email: "",
+    role: "intern" as "intern" | "staff",
+  });
+  const [registerStatus, setRegisterStatus] = useState<{ kind: "idle" | "saving" | "success" | "error"; message?: string }>({ kind: "idle" });
 
   // Require an authenticated admin
   useEffect(() => {
@@ -148,6 +158,35 @@ export default function LogsPage() {
     setDateTo("");
     setTypeFilter("all");
     setSortBy("date-desc");
+    setRoleFilter("all");
+  }
+
+  function handleRegisterSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!registerForm.name.trim() || !registerForm.email.trim()) {
+      setRegisterStatus({ kind: "error", message: "Please fill in all fields" });
+      return;
+    }
+
+    setRegisterStatus({ kind: "saving" });
+    
+    // Simulate registration - in production this would call an API
+    setTimeout(async () => {
+      try {
+        await createActivityLog("USER_REGISTRATION", `New ${registerForm.role} registered: ${registerForm.name} (${registerForm.email})`);
+        setRegisterStatus({ 
+          kind: "success", 
+          message: `${registerForm.name} registered as ${registerForm.role}!` 
+        });
+        setTimeout(() => {
+          setShowRegisterModal(false);
+          setRegisterForm({ name: "", email: "", role: "intern" });
+          setRegisterStatus({ kind: "idle" });
+        }, 2000);
+      } catch (error) {
+        setRegisterStatus({ kind: "error", message: "Registration failed" });
+      }
+    }, 1000);
   }
 
   const hasFilters =
@@ -155,7 +194,8 @@ export default function LogsPage() {
     dateFrom !== "" ||
     dateTo !== "" ||
     typeFilter !== "all" ||
-    sortBy !== "date-desc";
+    sortBy !== "date-desc" ||
+    roleFilter !== "all";
 
   if (!authChecked) {
     return (
@@ -185,6 +225,16 @@ export default function LogsPage() {
         </div>
         
         <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => {
+              playClickSound();
+              setShowRegisterModal(true);
+            }}
+            className="rounded-xl border border-brand-blue-200 bg-brand-blue-50 px-4 py-2 text-xs font-bold text-brand-blue-600 hover:bg-brand-blue-100 hover:border-brand-blue-300 transition shadow-sm cursor-pointer"
+          >
+            + Register Intern/Staff
+          </button>
           <Link
             href="/"
             onClick={playClickSound}
@@ -232,7 +282,7 @@ export default function LogsPage() {
         <>
           {/* Filters & sorting */}
           <div className="z-10 flex flex-col gap-4 rounded-[18px] border border-surface-200 bg-white p-5 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)]">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="search" className="text-[10px] font-bold text-ink-500 uppercase tracking-wider">
                   Search name
@@ -261,6 +311,25 @@ export default function LogsPage() {
                   <option value="login">Log In</option>
                   <option value="break">Break</option>
                   <option value="logout">Log Out</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="role" className="text-[10px] font-bold text-ink-500 uppercase tracking-wider">
+                  Role
+                </label>
+                <select
+                  id="role"
+                  value={roleFilter}
+                  onChange={(e) => { playClickSound(); setRoleFilter(e.target.value as "all" | "intern" | "staff" | "client" | "guest" | "admin"); }}
+                  className="rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-ink-950 outline-none transition focus:border-brand-blue-500 cursor-pointer"
+                >
+                  <option value="all">All roles</option>
+                  <option value="intern">Intern</option>
+                  <option value="staff">Staff</option>
+                  <option value="client">Client</option>
+                  <option value="guest">Guest</option>
+                  <option value="admin">Admin</option>
                 </select>
               </div>
 
@@ -475,6 +544,87 @@ export default function LogsPage() {
 
       {selectedLog && (
         <LogModal log={selectedLog} onClose={() => setSelectedLog(null)} />
+      )}
+
+      {/* Registration Modal */}
+      {showRegisterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-[18px] border border-surface-200 bg-white p-6 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-ink-900">Register New User</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  playClickSound();
+                  setShowRegisterModal(false);
+                }}
+                className="text-ink-400 transition hover:text-ink-900 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {registerStatus.kind === "success" ? (
+              <div className="flex flex-col items-center gap-4 rounded-2xl border border-brand-blue-100 bg-gradient-to-b from-brand-blue-50/40 to-brand-blue-100/10 p-6 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-brand-blue-600 to-brand-blue-500 text-xl font-bold text-white shadow-md">✨</div>
+                <div>
+                  <h3 className="font-bold text-ink-900">{registerStatus.message}</h3>
+                  <p className="mt-1 text-xs text-ink-500">User added to system successfully</p>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-4">
+                <div>
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-ink-500">Full Name</label>
+                  <input
+                    type="text"
+                    value={registerForm.name}
+                    onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
+                    placeholder="e.g. Juan Dela Cruz"
+                    className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2.5 text-sm text-ink-950 placeholder-ink-400 outline-none transition focus:border-brand-blue-500 focus:ring-1 focus:ring-brand-blue-500/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-ink-500">Email</label>
+                  <input
+                    type="email"
+                    value={registerForm.email}
+                    onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
+                    placeholder="e.g. juan@startuplab.ph"
+                    className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2.5 text-sm text-ink-950 placeholder-ink-400 outline-none transition focus:border-brand-blue-500 focus:ring-1 focus:ring-brand-blue-500/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-ink-500">Role</label>
+                  <select
+                    value={registerForm.role}
+                    onChange={(e) => setRegisterForm({ ...registerForm, role: e.target.value as "intern" | "staff" })}
+                    className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2.5 text-sm text-ink-950 outline-none transition focus:border-brand-blue-500 focus:ring-1 focus:ring-brand-blue-500/20"
+                  >
+                    <option value="intern">Intern</option>
+                    <option value="staff">Staff</option>
+                  </select>
+                </div>
+
+                {registerStatus.kind === "error" && (
+                  <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 border border-red-200">
+                    {registerStatus.message}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={registerStatus.kind === "saving"}
+                  className="mt-2 rounded-xl bg-brand-blue-600 px-4 py-2.5 font-semibold text-white transition hover:bg-brand-blue-500 disabled:opacity-50 cursor-pointer"
+                >
+                  {registerStatus.kind === "saving" ? "Registering..." : "Register User"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
       )}
     </main>
   );
