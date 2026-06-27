@@ -22,7 +22,7 @@ const TYPE_BADGE: Record<LogType, string> = {
   break: "bg-brand-blue-50 border border-brand-blue-100 text-brand-blue-700",
   logout: "bg-brand-blue-50 border border-brand-blue-100 text-brand-blue-700",
 };
-
+  
 export default function LogsPage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
