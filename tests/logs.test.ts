@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createLog, createMultipleLogs } from "../lib/logs";
+import { createLog, createMultipleLogs, getNameSuggestions } from "../lib/logs";
 
 const DATA_URL = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
 
@@ -153,6 +153,26 @@ describe("state transitions", () => {
         expect(l.type).toBe("login");
         expect(l.state).toBe("in_office");
       });
+    });
+  });
+
+  describe("role directory", () => {
+    it("loads suggestions from mock users", async () => {
+      const suggestions = await getNameSuggestions();
+
+      expect(suggestions).toEqual(
+        expect.arrayContaining([
+          { name: "Alice Vance", role: "admin" },
+          { name: "Bob Smith", role: "staff" },
+          { name: "Charlie Brown", role: "intern" },
+        ])
+      );
+    });
+
+    it("rejects an existing user submitted with the wrong role", async () => {
+      await expect(
+        createLog("Bob Smith", "logout", DATA_URL, "intern")
+      ).rejects.toThrow("not registered as intern");
     });
   });
 

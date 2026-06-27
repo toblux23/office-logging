@@ -43,6 +43,57 @@ const GREETINGS = [
   "🧠 Work hard, collaborate, and make an impact!",
 ];
 
+const WALK_IN_ROLES = new Set<UserRole>(["guest", "client"]);
+
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+function mergeSuggestions(
+  currentSuggestions: Array<{ name: string; role: UserRole }>,
+  newSuggestions: Array<{ name: string; role: UserRole }>
+) {
+  const suggestionsByName = new Map<string, { name: string; role: UserRole }>();
+
+  for (const suggestion of currentSuggestions) {
+    suggestionsByName.set(normalizeName(suggestion.name), suggestion);
+  }
+
+  for (const suggestion of newSuggestions) {
+    suggestionsByName.set(normalizeName(suggestion.name), suggestion);
+  }
+
+  return Array.from(suggestionsByName.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function getRoleVerificationError(
+  people: Array<{ name: string; role: UserRole }>,
+  suggestions: Array<{ name: string; role: UserRole }>,
+  action: LogType
+) {
+  const suggestionsByName = new Map<string, { name: string; role: UserRole }>();
+
+  for (const suggestion of suggestions) {
+    suggestionsByName.set(normalizeName(suggestion.name), suggestion);
+  }
+
+  for (const person of people) {
+    const name = person.name.trim();
+    const registeredPerson = suggestionsByName.get(normalizeName(name));
+
+    if (registeredPerson?.role === person.role) continue;
+    if (!registeredPerson && action === "login" && WALK_IN_ROLES.has(person.role)) continue;
+
+    if (registeredPerson) {
+      return `${name} is registered as ${registeredPerson.role}, not ${person.role}. Please select the correct role.`;
+    }
+
+    return `${name} is not registered as ${person.role}. Contact an administrator.`;
+  }
+
+  return null;
+}
+
 export default function LogForm() {
   const [action, setAction] = useState<LogType | null>(null);
   const [people, setPeople] = useState<Array<{ name: string; role: UserRole }>>([{ name: "", role: "intern" }]);
@@ -50,6 +101,7 @@ export default function LogForm() {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
   const [suggestions, setSuggestions] = useState<Array<{ name: string; role: UserRole }>>([]);
+  const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
   const [currentGreeting, setCurrentGreeting] = useState("");
 
   const greetingMatch = currentGreeting.match(/^([^\w\s]+)?\s*(.*)$/);
@@ -64,11 +116,19 @@ export default function LogForm() {
     getLogs(500)
       .then(setAllLogs)
       .catch((error) => console.error("Failed to load logs:", error));
-
-    getNameSuggestions()
-      .then(setSuggestions)
-      .catch((error) => console.error("Failed to load suggestions:", error));
   }, [action]);
+
+  useEffect(() => {
+    getNameSuggestions()
+      .then((loadedSuggestions) => {
+        setSuggestions(loadedSuggestions);
+        setSuggestionsLoaded(true);
+      })
+      .catch((error) => {
+        console.error("Failed to load suggestions:", error);
+        setSuggestionsLoaded(false);
+      });
+  }, []);
 
   const saving = status.kind === "saving";
   const canSave = !!action && !!image && people.every((person) => person.name.trim().length > 0) && !saving;
@@ -114,12 +174,22 @@ export default function LogForm() {
   async function handleSave() {
     if (!canSave || !action || !image) return;
 
+    if (suggestionsLoaded) {
+      const roleVerificationError = getRoleVerificationError(people, suggestions, action);
+      if (roleVerificationError) {
+        playErrorSound();
+        setStatus({ kind: "error", message: roleVerificationError });
+        return;
+      }
+    }
+
     setStatus({ kind: "saving" });
 
     try {
       const createdLogs = await createMultipleLogs(people, action, image);
       const updatedLogs = [...createdLogs, ...allLogs];
       setAllLogs(updatedLogs);
+      setSuggestions((current) => mergeSuggestions(current, createdLogs.map(({ name, role }) => ({ name, role }))));
 
       const welcomeCards = people.map((person) => {
         const name = person.name.trim();

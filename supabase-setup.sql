@@ -61,10 +61,42 @@ language sql
 security definer
 stable
 as $$
-  select state from public.users where name = p_name;
+  select state
+  from public.users
+  where lower(name) = lower(btrim(p_name))
+  limit 1;
 $$;
 
 grant execute on function get_user_state(text) to anon, authenticated;
+
+-- RPC to read a user's role and state for kiosk-side role verification.
+create or replace function get_user_profile(p_name text)
+returns table(name text, role text, state user_state)
+language sql
+security definer
+stable
+as $$
+  select u.name, u.role, u.state
+  from public.users u
+  where lower(u.name) = lower(btrim(p_name))
+  limit 1;
+$$;
+
+grant execute on function get_user_profile(text) to anon, authenticated;
+
+-- RPC to read the kiosk autocomplete directory without exposing full user rows.
+create or replace function get_user_suggestions()
+returns table(name text, role text)
+language sql
+security definer
+stable
+as $$
+  select u.name, u.role
+  from public.users u
+  order by lower(u.name);
+$$;
+
+grant execute on function get_user_suggestions() to anon, authenticated;
 
 -- RPC to upsert a user's state when a log is created
 create or replace function upsert_user_state(p_name text, p_role text, p_state user_state)

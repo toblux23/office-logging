@@ -29,27 +29,90 @@ const STATE_LABELS: Record<string, string> = {
   on_break: "on break",
 };
 
+const WALK_IN_ROLES = new Set<UserRole>(["guest", "client"]);
+
+interface UserProfile {
+  name: string;
+  role: UserRole;
+  state: UserState;
+}
+
+interface ValidatedPerson {
+  name: string;
+  role: UserRole;
+  state: UserState;
+}
+
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+function roleLabel(role: UserRole): string {
+  return role;
+}
+
 function assertAllowedAction(currentState: string, type: LogType, name: string, role?: UserRole): void {
   const allowed = ALLOWED_TRANSITIONS[currentState];
   if (!allowed?.includes(type)) {
     if (currentState === "unknown") {
-      throw new Error(`${name} not found. Contact an administrator.`);
+      throw new Error(`${name} not found as ${role ? roleLabel(role) : "that role"}. Contact an administrator.`);
     }
     throw new Error(
       `${name} can't ${ACTION_LABELS[type]} (currently ${STATE_LABELS[currentState] ?? currentState}).`
     );
   }
-  if (currentState === "unknown" && type === "login" && role !== "guest" && role !== "client") {
-    throw new Error(`${name} is not registered. Only guests and clients can be created on first login.`);
+  if (currentState === "unknown" && type === "login" && role && !WALK_IN_ROLES.has(role)) {
+    throw new Error(`${name} is not registered as ${roleLabel(role)}. Contact an administrator.`);
   }
 }
 
-async function validateTransition(name: string, type: LogType, role: UserRole): Promise<UserState> {
-  const { data, error } = await supabase.rpc("get_user_state", { p_name: name });
+function assertRoleMatches(profile: UserProfile, selectedRole: UserRole, inputName: string): void {
+  if (profile.role === selectedRole) return;
+
+  throw new Error(
+    `${inputName.trim()} is not registered as ${roleLabel(selectedRole)}. Please select ${roleLabel(profile.role)} or contact an administrator.`
+  );
+}
+
+async function getUserProfile(name: string): Promise<UserProfile | null> {
+  if (IS_MOCK) {
+    return getMockUser(name);
+  }
+
+  const { data, error } = await supabase.rpc("get_user_profile", { p_name: name });
   if (error) throw new Error(error.message);
-  const currentState = (data ?? "unknown") as string;
-  assertAllowedAction(currentState, type, name, role);
-  return NEXT_STATE[type];
+
+  const profile = Array.isArray(data) ? data[0] : data;
+  if (!profile) return null;
+
+  return {
+    name: profile.name,
+    role: profile.role as UserRole,
+    state: profile.state as UserState,
+  };
+}
+
+async function validatePerson(name: string, type: LogType, role: UserRole): Promise<ValidatedPerson> {
+  const trimmedName = name.trim();
+  const profile = await getUserProfile(trimmedName);
+
+  if (!profile) {
+    assertAllowedAction("unknown", type, trimmedName, role);
+    return {
+      name: trimmedName,
+      role,
+      state: NEXT_STATE[type],
+    };
+  }
+
+  assertRoleMatches(profile, role, trimmedName);
+  assertAllowedAction(profile.state, type, profile.name, role);
+
+  return {
+    name: profile.name,
+    role: profile.role,
+    state: NEXT_STATE[type],
+  };
 }
 
 // --- Mock helpers --------------------------------------------------
@@ -150,7 +213,24 @@ function saveMockLogs(logs: LogEntry[]) {
 function getMockUsers(): User[] {
   if (typeof window === "undefined") return [];
   const stored = localStorage.getItem("office_users");
-  return stored ? JSON.parse(stored) : [];
+  if (stored) return JSON.parse(stored);
+
+  const usersByName = new Map<string, User>();
+  for (const log of getMockLogs()) {
+    const key = normalizeName(log.name);
+    if (!usersByName.has(key)) {
+      usersByName.set(key, {
+        name: log.name,
+        role: log.role,
+        state: log.state,
+        updated_at: log.created_at,
+      });
+    }
+  }
+
+  const users = Array.from(usersByName.values());
+  saveMockUsers(users);
+  return users;
 }
 
 function saveMockUsers(users: User[]) {
@@ -158,9 +238,14 @@ function saveMockUsers(users: User[]) {
   localStorage.setItem("office_users", JSON.stringify(users));
 }
 
+function getMockUser(name: string): User | null {
+  const normalizedName = normalizeName(name);
+  return getMockUsers().find(u => normalizeName(u.name) === normalizedName) ?? null;
+}
+
 function upsertMockUser(name: string, role: UserRole, state: UserState) {
   const users = getMockUsers();
-  const idx = users.findIndex(u => u.name.toLowerCase() === name.toLowerCase());
+  const idx = users.findIndex(u => normalizeName(u.name) === normalizeName(name));
   const user: User = { name, role, state, updated_at: new Date().toISOString() };
   if (idx >= 0) {
     users[idx] = user;
@@ -197,29 +282,26 @@ export async function createLog(
 
   if (IS_MOCK) {
     const logs = getMockLogs();
-    const userLogs = logs.filter(l => l.name.toLowerCase() === trimmedName.toLowerCase());
-    const currentState = userLogs.length > 0 ? (userLogs[0].state ?? "unknown") : "unknown";
-    assertAllowedAction(currentState, type, trimmedName, role);
-    const nextState = NEXT_STATE[type];
+    const validated = await validatePerson(trimmedName, type, role);
     const newLog: LogEntry = {
       id: crypto.randomUUID(),
-      name: trimmedName,
+      name: validated.name,
       type,
-      role,
-      state: nextState,
+      role: validated.role,
+      state: validated.state,
       image_url: imageDataUrl,
       created_at: new Date().toISOString(),
     };
     logs.unshift(newLog);
     saveMockLogs(logs);
-    upsertMockUser(trimmedName, role, nextState);
+    upsertMockUser(validated.name, validated.role, validated.state);
     return newLog;
   }
 
-  const nextState = await validateTransition(trimmedName, type, role);
+  const validated = await validatePerson(trimmedName, type, role);
 
   const blob = dataUrlToBlob(imageDataUrl);
-  const safeName = trimmedName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const safeName = validated.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const path = `${safeName}/${type}-${Date.now()}.jpg`;
 
   const { error: uploadError } = await supabase.storage
@@ -236,16 +318,16 @@ export async function createLog(
 
   const { error } = await supabase
     .from("logs")
-    .insert({ name: trimmedName, type, role, state: nextState, image_url: publicUrl });
+    .insert({ name: validated.name, type, role: validated.role, state: validated.state, image_url: publicUrl });
 
   if (error) {
     throw new Error(`Saving log failed: ${error.message}`);
   }
 
   const { error: upsertError } = await supabase.rpc("upsert_user_state", {
-    p_name: trimmedName,
-    p_role: role,
-    p_state: nextState,
+    p_name: validated.name,
+    p_role: validated.role,
+    p_state: validated.state,
   });
 
   if (upsertError) {
@@ -254,10 +336,10 @@ export async function createLog(
 
   return {
     id: crypto.randomUUID(),
-    name: trimmedName,
+    name: validated.name,
     type,
-    role,
-    state: nextState,
+    role: validated.role,
+    state: validated.state,
     image_url: publicUrl,
     created_at: new Date().toISOString(),
   } as LogEntry;
@@ -282,22 +364,19 @@ export async function createMultipleLogs(
     for (const person of people) {
       const trimmedName = person.name.trim();
       if (!trimmedName) continue;
-      const userLogs = logs.filter(l => l.name.toLowerCase() === trimmedName.toLowerCase());
-      const currentState = userLogs.length > 0 ? (userLogs[0].state ?? "unknown") : "unknown";
-      assertAllowedAction(currentState, type, trimmedName, person.role);
-      const nextState = NEXT_STATE[type];
+      const validated = await validatePerson(trimmedName, type, person.role);
       const newLog: LogEntry = {
         id: crypto.randomUUID(),
-        name: trimmedName,
+        name: validated.name,
         type,
-        role: person.role,
-        state: nextState,
+        role: validated.role,
+        state: validated.state,
         image_url: imageDataUrl,
         created_at: timestamp,
       };
       logs.unshift(newLog);
       createdLogs.push(newLog);
-      upsertMockUser(trimmedName, person.role, nextState);
+      upsertMockUser(validated.name, validated.role, validated.state);
     }
     saveMockLogs(logs);
     return createdLogs;
@@ -308,11 +387,7 @@ export async function createMultipleLogs(
 
   // Validate all state transitions before doing expensive operations
   const stateResults = await Promise.all(
-    validPeople.map(async p => ({
-      name: p.name.trim(),
-      role: p.role,
-      state: await validateTransition(p.name.trim(), type, p.role),
-    }))
+    validPeople.map(p => validatePerson(p.name.trim(), type, p.role))
   );
 
   const blob = dataUrlToBlob(imageDataUrl);
@@ -384,18 +459,18 @@ export async function getLogs(limit = 200): Promise<LogEntry[]> {
   return (data ?? []) as LogEntry[];
 }
 
-/** Get list of auto-search suggestions (unique names + their last roles) */
+/** Get list of auto-search suggestions from the user directory. */
 export async function getNameSuggestions(): Promise<Array<{ name: string; role: UserRole }>> {
-  const logs = await getLogs(1000);
-  const map = new Map<string, UserRole>();
-  
-  // Iterate back in time to catch the most recent role for each name
-  for (let i = logs.length - 1; i >= 0; i--) {
-    const log = logs[i];
-    map.set(log.name.trim(), log.role);
+  if (IS_MOCK) {
+    return getMockUsers()
+      .map(({ name, role }) => ({ name, role }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  return Array.from(map.entries()).map(([name, role]) => ({ name, role }));
+  const { data, error } = await supabase.rpc("get_user_suggestions");
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as Array<{ name: string; role: UserRole }>).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Calculate user's current consecutive login streak in days */

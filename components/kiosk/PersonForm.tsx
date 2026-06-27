@@ -64,9 +64,10 @@ export default function PersonForm({
 
       {people.map((person, index) => {
         const streak = calculateStreak(allLogs, person.name);
+        const roleSuggestions = suggestions.filter((s) => s.role === person.role);
         const filteredSuggestions = person.name.trim().length === 0
-          ? suggestions.slice(0, 10)
-          : suggestions.filter(
+          ? roleSuggestions.slice(0, 10)
+          : roleSuggestions.filter(
               (s) =>
                 s.name.toLowerCase().includes(person.name.toLowerCase()) &&
                 s.name.toLowerCase() !== person.name.toLowerCase()
