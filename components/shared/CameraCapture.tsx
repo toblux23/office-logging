@@ -16,7 +16,7 @@ const videoConstraints = {
 };
 
 type PhotoStyle = "normal" | "warm" | "cool" | "vintage" | "mono" | "bright";
-type FaceEffect = "none" | "sunglasses" | "blush" | "sparkle" | "mask";
+type FaceEffect = "none" | "sunglasses" | "blush" | "sparkle" | "dog";
 
 interface FaceAnchor {
   centerX: number;
@@ -40,7 +40,7 @@ const FACE_EFFECTS: Array<{ id: FaceEffect; label: string }> = [
   { id: "sunglasses", label: "Shades" },
   { id: "blush", label: "Blush" },
   { id: "sparkle", label: "Sparkle" },
-  { id: "mask", label: "Face Frame" },
+  { id: "dog", label: "Dog" },
 ];
 
 const FACE_LANDMARKER_MODEL =
@@ -69,19 +69,52 @@ function drawStar(context: CanvasRenderingContext2D, x: number, y: number, radiu
   context.closePath();
 }
 
-function drawFaceEffect(context: CanvasRenderingContext2D, effect: FaceEffect, face: FaceAnchor | null, width: number, height: number) {
-  if (effect === "none") return;
+function shouldIgnoreMediaPipeConsole(args: unknown[]) {
+  return args.some((arg) => {
+    if (typeof arg !== "string") return false;
+    return arg.includes("Created TensorFlow Lite XNNPACK delegate for CPU") || arg.includes("Feedback manager requires a model");
+  });
+}
 
-  const anchor =
-    face ??
-    ({
-      centerX: 0.5,
-      eyeY: 0.42,
-      cheekY: 0.58,
-      width: 0.34,
-      height: 0.44,
-    } satisfies FaceAnchor);
+function withSilencedMediaPipeConsole<T>(work: () => T): T {
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => {
+    if (shouldIgnoreMediaPipeConsole(args)) return;
+    originalError(...args);
+  };
 
+  try {
+    return work();
+  } finally {
+    console.error = originalError;
+  }
+}
+
+async function withSilencedMediaPipeConsoleAsync<T>(work: () => Promise<T>): Promise<T> {
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => {
+    if (shouldIgnoreMediaPipeConsole(args)) return;
+    originalError(...args);
+  };
+
+  try {
+    return await work();
+  } finally {
+    console.error = originalError;
+  }
+}
+
+function getFallbackFace(): FaceAnchor {
+  return {
+    centerX: 0.5,
+    eyeY: 0.42,
+    cheekY: 0.58,
+    width: 0.34,
+    height: 0.44,
+  };
+}
+
+function drawSingleFaceEffect(context: CanvasRenderingContext2D, effect: Exclude<FaceEffect, "none">, anchor: FaceAnchor, width: number, height: number) {
   const faceWidth = anchor.width * width;
   const faceHeight = anchor.height * height;
   const centerX = anchor.centerX * width;
@@ -148,27 +181,57 @@ function drawFaceEffect(context: CanvasRenderingContext2D, effect: FaceEffect, f
     }
   }
 
-  if (effect === "mask") {
-    const frameWidth = faceWidth * 0.82;
-    const frameHeight = faceHeight * 0.96;
-    const y = eyeY - frameHeight * 0.37;
+  if (effect === "dog") {
+    const earWidth = faceWidth * 0.24;
+    const earHeight = faceHeight * 0.38;
+    const earY = eyeY - faceHeight * 0.46;
+    const noseY = cheekY - faceHeight * 0.08;
+    const tongueY = cheekY + faceHeight * 0.15;
 
-    context.strokeStyle = "rgba(255, 255, 255, 0.86)";
-    context.lineWidth = Math.max(5, width * 0.006);
-    context.shadowColor = "rgba(49, 94, 239, 0.42)";
-    context.shadowBlur = Math.max(12, width * 0.015);
+    context.fillStyle = "rgba(124, 80, 47, 0.9)";
     context.beginPath();
-    context.ellipse(centerX, y + frameHeight * 0.5, frameWidth * 0.5, frameHeight * 0.5, 0, 0, Math.PI * 2);
+    context.ellipse(centerX - faceWidth * 0.34, earY, earWidth, earHeight, -0.42, 0, Math.PI * 2);
+    context.fill();
+    context.beginPath();
+    context.ellipse(centerX + faceWidth * 0.34, earY, earWidth, earHeight, 0.42, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = "rgba(250, 204, 155, 0.95)";
+    context.beginPath();
+    context.ellipse(centerX - faceWidth * 0.34, earY + earHeight * 0.08, earWidth * 0.48, earHeight * 0.62, -0.42, 0, Math.PI * 2);
+    context.fill();
+    context.beginPath();
+    context.ellipse(centerX + faceWidth * 0.34, earY + earHeight * 0.08, earWidth * 0.48, earHeight * 0.62, 0.42, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = "rgba(15, 23, 42, 0.9)";
+    context.beginPath();
+    context.ellipse(centerX, noseY, faceWidth * 0.075, faceHeight * 0.055, 0, 0, Math.PI * 2);
+    context.fill();
+
+    context.strokeStyle = "rgba(15, 23, 42, 0.8)";
+    context.lineWidth = Math.max(2, width * 0.003);
+    context.beginPath();
+    context.moveTo(centerX, noseY + faceHeight * 0.045);
+    context.quadraticCurveTo(centerX - faceWidth * 0.055, noseY + faceHeight * 0.11, centerX - faceWidth * 0.12, noseY + faceHeight * 0.08);
+    context.moveTo(centerX, noseY + faceHeight * 0.045);
+    context.quadraticCurveTo(centerX + faceWidth * 0.055, noseY + faceHeight * 0.11, centerX + faceWidth * 0.12, noseY + faceHeight * 0.08);
     context.stroke();
 
-    context.shadowBlur = 0;
-    context.fillStyle = "rgba(49, 94, 239, 0.16)";
+    context.fillStyle = "rgba(244, 114, 182, 0.82)";
     context.beginPath();
-    context.ellipse(centerX, y + frameHeight * 0.5, frameWidth * 0.5, frameHeight * 0.5, 0, 0, Math.PI * 2);
+    context.roundRect(centerX - faceWidth * 0.045, tongueY, faceWidth * 0.09, faceHeight * 0.18, faceWidth * 0.04);
     context.fill();
   }
 
   context.restore();
+}
+
+function drawFaceEffect(context: CanvasRenderingContext2D, effect: FaceEffect, faces: FaceAnchor[], width: number, height: number) {
+  if (effect === "none") return;
+
+  const anchors = faces.length > 0 ? faces : [getFallbackFace()];
+  anchors.forEach((anchor) => drawSingleFaceEffect(context, effect, anchor, width, height));
 }
 
 export default function CameraCapture({ onCapture }: CameraCaptureProps) {
@@ -183,40 +246,43 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
   const [flash, setFlash] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState<PhotoStyle>("normal");
   const [selectedFaceEffect, setSelectedFaceEffect] = useState<FaceEffect>("none");
-  const [faceAnchor, setFaceAnchor] = useState<FaceAnchor | null>(null);
+  const [faceAnchors, setFaceAnchors] = useState<FaceAnchor[]>([]);
   const [trackingReady, setTrackingReady] = useState(false);
+  const [trackingRequested, setTrackingRequested] = useState(false);
 
   const selectedPhotoStyle = PHOTO_STYLES.find((style) => style.id === selectedStyle) ?? PHOTO_STYLES[0];
 
   useEffect(() => {
+    if (selectedFaceEffect !== "none") {
+      setTrackingRequested(true);
+    }
+  }, [selectedFaceEffect]);
+
+  useEffect(() => {
     let cancelled = false;
 
-    if (selectedFaceEffect === "none" || landmarkerRef.current) {
-      return () => {
-        cancelled = true;
-      };
-    }
+    if (!trackingRequested || landmarkerRef.current) return;
 
     async function loadFaceTracking() {
       try {
         const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
-        const vision = await FilesetResolver.forVisionTasks(VISION_WASM_PATH);
+        const vision = await withSilencedMediaPipeConsoleAsync(() => FilesetResolver.forVisionTasks(VISION_WASM_PATH));
         const landmarkerOptions = {
           baseOptions: {
             modelAssetPath: FACE_LANDMARKER_MODEL,
             delegate: "GPU" as const,
           },
           runningMode: "VIDEO" as const,
-          numFaces: 1,
+          numFaces: 4,
         };
-        const landmarker = await FaceLandmarker.createFromOptions(vision, landmarkerOptions).catch(() =>
-          FaceLandmarker.createFromOptions(vision, {
+        const landmarker = await withSilencedMediaPipeConsoleAsync(() => FaceLandmarker.createFromOptions(vision, landmarkerOptions)).catch(() =>
+          withSilencedMediaPipeConsoleAsync(() => FaceLandmarker.createFromOptions(vision, {
             ...landmarkerOptions,
             baseOptions: {
               modelAssetPath: FACE_LANDMARKER_MODEL,
               delegate: "CPU",
             },
-          }),
+          })),
         );
 
         if (cancelled) {
@@ -236,16 +302,24 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
 
     return () => {
       cancelled = true;
+    };
+  }, [trackingRequested]);
+
+  useEffect(() => {
+    return () => {
       if (trackingFrameRef.current !== null) {
         cancelAnimationFrame(trackingFrameRef.current);
       }
-      landmarkerRef.current?.close();
+      withSilencedMediaPipeConsole(() => landmarkerRef.current?.close());
       landmarkerRef.current = null;
     };
-  }, [selectedFaceEffect]);
+  }, []);
 
   useEffect(() => {
-    if (!cameraReady || !trackingReady || image) return;
+    if (!cameraReady || !trackingReady || image || selectedFaceEffect === "none") {
+      setFaceAnchors([]);
+      return;
+    }
 
     const trackFace = () => {
       const video = webcamRef.current?.video;
@@ -255,29 +329,29 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
         lastVideoTimeRef.current = video.currentTime;
 
         try {
-          const result = landmarker.detectForVideo(video, performance.now());
-          const landmarks = result.faceLandmarks[0];
+          const result = withSilencedMediaPipeConsole(() => landmarker.detectForVideo(video, performance.now()));
+          const faces = result.faceLandmarks
+            .filter((landmarks) => landmarks.length > 0)
+            .map((landmarks) => {
+              const mirroredX = landmarks.map((landmark) => 1 - landmark.x);
+              const yValues = landmarks.map((landmark) => landmark.y);
+              const minX = Math.min(...mirroredX);
+              const maxX = Math.max(...mirroredX);
+              const minY = Math.min(...yValues);
+              const maxY = Math.max(...yValues);
+              const leftEye = landmarks[33];
+              const rightEye = landmarks[263];
 
-          if (landmarks?.length) {
-            const mirroredX = landmarks.map((landmark) => 1 - landmark.x);
-            const yValues = landmarks.map((landmark) => landmark.y);
-            const minX = Math.min(...mirroredX);
-            const maxX = Math.max(...mirroredX);
-            const minY = Math.min(...yValues);
-            const maxY = Math.max(...yValues);
-            const leftEye = landmarks[33];
-            const rightEye = landmarks[263];
-
-            setFaceAnchor({
-              centerX: clamp((minX + maxX) / 2, 0, 1),
-              eyeY: clamp(leftEye && rightEye ? (leftEye.y + rightEye.y) / 2 : minY + (maxY - minY) * 0.35, 0, 1),
-              cheekY: clamp(minY + (maxY - minY) * 0.58, 0, 1),
-              width: clamp((maxX - minX) * 1.08, 0.16, 0.8),
-              height: clamp((maxY - minY) * 1.08, 0.18, 0.9),
+              return {
+                centerX: clamp((minX + maxX) / 2, 0, 1),
+                eyeY: clamp(leftEye && rightEye ? (leftEye.y + rightEye.y) / 2 : minY + (maxY - minY) * 0.35, 0, 1),
+                cheekY: clamp(minY + (maxY - minY) * 0.58, 0, 1),
+                width: clamp((maxX - minX) * 1.08, 0.16, 0.8),
+                height: clamp((maxY - minY) * 1.08, 0.18, 0.9),
+              };
             });
-          } else {
-            setFaceAnchor(null);
-          }
+
+          setFaceAnchors(faces);
         } catch (trackingError) {
           console.warn("Face tracking frame failed:", trackingError);
         }
@@ -293,7 +367,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
         cancelAnimationFrame(trackingFrameRef.current);
       }
     };
-  }, [cameraReady, image, trackingReady]);
+  }, [cameraReady, image, selectedFaceEffect, trackingReady]);
 
   const captureFilteredImage = useCallback(() => {
     const video = webcamRef.current?.video;
@@ -313,10 +387,10 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     context.restore();
 
-    drawFaceEffect(context, selectedFaceEffect, faceAnchor, canvas.width, canvas.height);
+    drawFaceEffect(context, selectedFaceEffect, faceAnchors, canvas.width, canvas.height);
 
     return canvas.toDataURL("image/png", 1);
-  }, [faceAnchor, selectedFaceEffect, selectedPhotoStyle.filter]);
+  }, [faceAnchors, selectedFaceEffect, selectedPhotoStyle.filter]);
 
   const startCountdown = useCallback(() => {
     if (countdown !== null) return;
@@ -386,7 +460,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
 
         {!image && selectedFaceEffect !== "none" && (
           <div className="pointer-events-none absolute inset-0 z-10">
-            <LiveFaceEffect effect={selectedFaceEffect} face={faceAnchor} trackingReady={trackingReady} />
+            <LiveFaceEffect effect={selectedFaceEffect} faces={faceAnchors} trackingReady={trackingReady} />
           </div>
         )}
 
@@ -444,7 +518,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
               <span className="text-[11px] font-bold uppercase tracking-wider text-ink-500">Face Filter</span>
               {selectedFaceEffect !== "none" && (
                 <span className="text-[10px] font-semibold text-ink-400">
-                  {trackingReady ? (faceAnchor ? "Tracking face" : "Find a face") : "Loading tracker"}
+                  {trackingReady ? (faceAnchors.length > 0 ? `Tracking ${faceAnchors.length} face${faceAnchors.length > 1 ? "s" : ""}` : "Find a face") : "Loading tracker"}
                 </span>
               )}
             </div>
@@ -490,27 +564,29 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
   );
 }
 
-function LiveFaceEffect({ effect, face, trackingReady }: { effect: FaceEffect; face: FaceAnchor | null; trackingReady: boolean }) {
-  const anchor =
-    face ??
-    ({
-      centerX: 0.5,
-      eyeY: 0.42,
-      cheekY: 0.58,
-      width: 0.34,
-      height: 0.44,
-    } satisfies FaceAnchor);
+function LiveFaceEffect({ effect, faces, trackingReady }: { effect: FaceEffect; faces: FaceAnchor[]; trackingReady: boolean }) {
+  const anchors = faces.length > 0 ? faces : [getFallbackFace()];
+  const opacityClass = trackingReady && faces.length === 0 ? "opacity-45" : "opacity-100";
 
-  const faceWidth = anchor.width * 100;
-  const faceHeight = anchor.height * 100;
-  const centerX = anchor.centerX * 100;
-  const eyeY = anchor.eyeY * 100;
-  const cheekY = anchor.cheekY * 100;
-  const opacityClass = trackingReady && !face ? "opacity-45" : "opacity-100";
+  return (
+    <div className={`absolute inset-0 ${opacityClass}`}>
+      {anchors.map((anchor, index) => (
+        <LiveSingleFaceEffect key={index} effect={effect} face={anchor} />
+      ))}
+    </div>
+  );
+}
+
+function LiveSingleFaceEffect({ effect, face }: { effect: FaceEffect; face: FaceAnchor }) {
+  const faceWidth = face.width * 100;
+  const faceHeight = face.height * 100;
+  const centerX = face.centerX * 100;
+  const eyeY = face.eyeY * 100;
+  const cheekY = face.cheekY * 100;
 
   if (effect === "sunglasses") {
     return (
-      <div className={`absolute ${opacityClass}`} style={{ left: `${centerX}%`, top: `${eyeY}%`, width: `${faceWidth * 0.76}%`, height: `${faceHeight * 0.16}%`, transform: "translate(-50%, -50%)" }}>
+      <div className="absolute" style={{ left: `${centerX}%`, top: `${eyeY}%`, width: `${faceWidth * 0.76}%`, height: `${faceHeight * 0.16}%`, transform: "translate(-50%, -50%)" }}>
         <div className="absolute left-0 top-0 h-full w-[42%] rounded-[40%] border-2 border-white/70 bg-ink-900/90 shadow-md" />
         <div className="absolute right-0 top-0 h-full w-[42%] rounded-[40%] border-2 border-white/70 bg-ink-900/90 shadow-md" />
         <div className="absolute left-[40%] top-1/2 h-[18%] w-[20%] -translate-y-1/2 rounded-full bg-ink-900/90" />
@@ -520,10 +596,10 @@ function LiveFaceEffect({ effect, face, trackingReady }: { effect: FaceEffect; f
 
   if (effect === "blush") {
     return (
-      <div className={`absolute inset-0 ${opacityClass}`}>
+      <>
         <span className="absolute rounded-full bg-pink-400/35 blur-[1px]" style={{ left: `${centerX - faceWidth * 0.24}%`, top: `${cheekY}%`, width: `${faceWidth * 0.22}%`, height: `${faceHeight * 0.13}%`, transform: "translate(-50%, -50%) rotate(-8deg)" }} />
         <span className="absolute rounded-full bg-pink-400/35 blur-[1px]" style={{ left: `${centerX + faceWidth * 0.24}%`, top: `${cheekY}%`, width: `${faceWidth * 0.22}%`, height: `${faceHeight * 0.13}%`, transform: "translate(-50%, -50%) rotate(8deg)" }} />
-      </div>
+      </>
     );
   }
 
@@ -536,7 +612,7 @@ function LiveFaceEffect({ effect, face, trackingReady }: { effect: FaceEffect; f
     ];
 
     return (
-      <div className={`absolute inset-0 ${opacityClass}`}>
+      <>
         {points.map(([left, top, size], index) => (
           <span
             key={`${left}-${top}-${index}`}
@@ -551,22 +627,74 @@ function LiveFaceEffect({ effect, face, trackingReady }: { effect: FaceEffect; f
             }}
           />
         ))}
-      </div>
+      </>
     );
   }
 
-  if (effect === "mask") {
+  if (effect === "dog") {
     return (
-      <div
-        className={`absolute rounded-[50%] border-[3px] border-white/85 bg-brand-blue-500/15 shadow-[0_0_22px_rgba(49,94,239,0.42)] ${opacityClass}`}
-        style={{
-          left: `${centerX}%`,
-          top: `${eyeY + faceHeight * 0.13}%`,
-          width: `${faceWidth * 0.82}%`,
-          height: `${faceHeight * 0.96}%`,
-          transform: "translate(-50%, -50%)",
-        }}
-      />
+      <>
+        <span
+          className="absolute rounded-[50%] bg-[#7c502f]/90"
+          style={{
+            left: `${centerX - faceWidth * 0.34}%`,
+            top: `${eyeY - faceHeight * 0.46}%`,
+            width: `${faceWidth * 0.48}%`,
+            height: `${faceHeight * 0.76}%`,
+            transform: "translate(-50%, -50%) rotate(-24deg)",
+          }}
+        />
+        <span
+          className="absolute rounded-[50%] bg-[#7c502f]/90"
+          style={{
+            left: `${centerX + faceWidth * 0.34}%`,
+            top: `${eyeY - faceHeight * 0.46}%`,
+            width: `${faceWidth * 0.48}%`,
+            height: `${faceHeight * 0.76}%`,
+            transform: "translate(-50%, -50%) rotate(24deg)",
+          }}
+        />
+        <span
+          className="absolute rounded-[50%] bg-[#facc9b]/95"
+          style={{
+            left: `${centerX - faceWidth * 0.34}%`,
+            top: `${eyeY - faceHeight * 0.43}%`,
+            width: `${faceWidth * 0.23}%`,
+            height: `${faceHeight * 0.48}%`,
+            transform: "translate(-50%, -50%) rotate(-24deg)",
+          }}
+        />
+        <span
+          className="absolute rounded-[50%] bg-[#facc9b]/95"
+          style={{
+            left: `${centerX + faceWidth * 0.34}%`,
+            top: `${eyeY - faceHeight * 0.43}%`,
+            width: `${faceWidth * 0.23}%`,
+            height: `${faceHeight * 0.48}%`,
+            transform: "translate(-50%, -50%) rotate(24deg)",
+          }}
+        />
+        <span
+          className="absolute rounded-[50%] bg-ink-900/90"
+          style={{
+            left: `${centerX}%`,
+            top: `${cheekY - faceHeight * 0.08}%`,
+            width: `${faceWidth * 0.15}%`,
+            height: `${faceHeight * 0.11}%`,
+            transform: "translate(-50%, -50%)",
+          }}
+        />
+        <span
+          className="absolute rounded-b-full bg-pink-400/85"
+          style={{
+            left: `${centerX}%`,
+            top: `${cheekY + faceHeight * 0.15}%`,
+            width: `${faceWidth * 0.09}%`,
+            height: `${faceHeight * 0.18}%`,
+            transform: "translate(-50%, -10%)",
+          }}
+        />
+      </>
     );
   }
 
