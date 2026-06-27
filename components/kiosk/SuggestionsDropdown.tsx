@@ -9,15 +9,22 @@ interface Suggestion {
 
 interface SuggestionsDropdownProps {
   suggestions: Suggestion[];
+  selectedRole: UserRole;
   onSelect: (suggestion: Suggestion) => void;
 }
 
-export default function SuggestionsDropdown({ suggestions, onSelect }: SuggestionsDropdownProps) {
-  if (suggestions.length === 0) return null;
+function normalizeRole(role: UserRole | string) {
+  return role.toLowerCase();
+}
+
+export default function SuggestionsDropdown({ suggestions, selectedRole, onSelect }: SuggestionsDropdownProps) {
+  const roleSuggestions = suggestions.filter((suggestion) => normalizeRole(suggestion.role) === normalizeRole(selectedRole));
+
+  if (roleSuggestions.length === 0) return null;
 
   return (
     <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-48 overflow-y-auto rounded-xl border border-surface-200 bg-white shadow-lg">
-      {suggestions.map((suggestion, index) => (
+      {roleSuggestions.map((suggestion, index) => (
         <button
           key={index}
           type="button"

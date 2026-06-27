@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { UserRole } from "@/lib/supabase";
 import { calculateStreak } from "@/lib/logs";
 import { playClickSound } from "@/lib/audio";
@@ -29,6 +29,10 @@ interface PersonFormProps {
   onSelectSuggestion: (index: number, suggestion: Suggestion) => void;
 }
 
+function normalizeRole(role: UserRole | string) {
+  return role.toLowerCase();
+}
+
 export default function PersonForm({
   people,
   allLogs,
@@ -41,6 +45,18 @@ export default function PersonForm({
   onSelectSuggestion,
 }: PersonFormProps) {
   const [activeInputIdx, setActiveInputIdx] = useState<number | null>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function showSuggestions(index: number) {
+    if (blurTimeoutRef.current) {
+      clearTimeout(blurTimeoutRef.current);
+    }
+    setActiveInputIdx(index);
+  }
+
+  function hideSuggestionsSoon() {
+    blurTimeoutRef.current = setTimeout(() => setActiveInputIdx(null), 250);
+  }
 
   function handleSelectSuggestion(index: number, suggestion: Suggestion) {
     playClickSound();
@@ -64,7 +80,7 @@ export default function PersonForm({
 
       {people.map((person, index) => {
         const streak = calculateStreak(allLogs, person.name);
-        const roleSuggestions = suggestions.filter((s) => s.role === person.role);
+        const roleSuggestions = suggestions.filter((s) => normalizeRole(s.role) === normalizeRole(person.role));
         const filteredSuggestions = person.name.trim().length === 0
           ? roleSuggestions.slice(0, 10)
           : roleSuggestions.filter(
@@ -81,8 +97,8 @@ export default function PersonForm({
                 <input
                   type="text"
                   value={person.name}
-                  onFocus={() => setActiveInputIdx(index)}
-                  onBlur={() => setTimeout(() => setActiveInputIdx(null), 250)}
+                  onFocus={() => showSuggestions(index)}
+                  onBlur={hideSuggestionsSoon}
                   onChange={(e) => onUpdateName(index, e.target.value)}
                   placeholder="e.g. Alex"
                   disabled={saving}
@@ -92,6 +108,7 @@ export default function PersonForm({
                 {activeInputIdx === index && filteredSuggestions.length > 0 && (
                   <SuggestionsDropdown
                     suggestions={filteredSuggestions}
+                    selectedRole={person.role}
                     onSelect={(s) => handleSelectSuggestion(index, s)}
                   />
                 )}
