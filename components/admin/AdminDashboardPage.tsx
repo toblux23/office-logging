@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getLogs, getActivityLogs, createActivityLog } from "@/lib/logs";
+import { getLogs, getActivityLogs, createActivityLog, getNameSuggestions } from "@/lib/logs";
 import { supabase, IS_MOCK } from "@/lib/supabase";
-import type { LogEntry, LogType, AdminActivityLog } from "@/lib/supabase";
+import type { LogEntry, LogType, UserRole, AdminActivityLog } from "@/lib/supabase";
 import { playClickSound } from "@/lib/audio";
 import FilterBar from "./FilterBar";
 import AttendanceTable from "./AttendanceTable";
@@ -15,6 +15,7 @@ import UserRegistrationPanel from "./UserRegistrationPanel";
 
 type SortKey = "date-desc" | "date-asc" | "name-asc" | "name-desc";
 type TypeFilter = "all" | LogType;
+type RoleFilter = "all" | UserRole;
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -31,7 +32,9 @@ export default function AdminDashboardPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [sortBy, setSortBy] = useState<SortKey>("date-desc");
+  const [nameSuggestions, setNameSuggestions] = useState<Array<{ name: string; role: UserRole }>>([]);
 
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
 
@@ -52,6 +55,7 @@ export default function AdminDashboardPage() {
           setError(e instanceof Error ? e.message : "Failed to load logs.")
         )
         .finally(() => setLoading(false));
+      getNameSuggestions().then(setNameSuggestions).catch(() => {});
     } else {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (!session) {
@@ -68,6 +72,7 @@ export default function AdminDashboardPage() {
             setError(e instanceof Error ? e.message : "Failed to load logs.")
           )
           .finally(() => setLoading(false));
+        getNameSuggestions().then(setNameSuggestions).catch(() => {});
       });
     }
   }, [router]);
@@ -102,6 +107,7 @@ export default function AdminDashboardPage() {
     const filtered = logs.filter((log) => {
       if (term && !log.name.toLowerCase().includes(term)) return false;
       if (typeFilter !== "all" && log.type !== typeFilter) return false;
+      if (roleFilter !== "all" && log.role !== roleFilter) return false;
       const ts = new Date(log.created_at).getTime();
       if (fromTs !== null && ts < fromTs) return false;
       if (toTs !== null && ts > toTs) return false;
@@ -127,7 +133,7 @@ export default function AdminDashboardPage() {
     });
 
     return sorted;
-  }, [logs, search, dateFrom, dateTo, typeFilter, sortBy]);
+  }, [logs, search, dateFrom, dateTo, typeFilter, roleFilter, sortBy]);
 
   function clearFilters() {
     playClickSound();
@@ -135,6 +141,7 @@ export default function AdminDashboardPage() {
     setDateFrom("");
     setDateTo("");
     setTypeFilter("all");
+    setRoleFilter("all");
     setSortBy("date-desc");
   }
 
@@ -143,6 +150,7 @@ export default function AdminDashboardPage() {
     dateFrom !== "" ||
     dateTo !== "" ||
     typeFilter !== "all" ||
+    roleFilter !== "all" ||
     sortBy !== "date-desc";
 
   if (!authChecked) {
@@ -223,14 +231,17 @@ export default function AdminDashboardPage() {
             dateFrom={dateFrom}
             dateTo={dateTo}
             typeFilter={typeFilter}
+            roleFilter={roleFilter}
             sortBy={sortBy}
             totalLogs={logs.length}
             visibleCount={visibleLogs.length}
             hasFilters={hasFilters}
+            nameSuggestions={nameSuggestions}
             onSearchChange={setSearch}
             onDateFromChange={setDateFrom}
             onDateToChange={setDateTo}
             onTypeFilterChange={setTypeFilter}
+            onRoleFilterChange={setRoleFilter}
             onSortByChange={setSortBy}
             onClearFilters={clearFilters}
           />
