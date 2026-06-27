@@ -1,6 +1,7 @@
 import { supabase, type LogEntry, type LogType, type UserRole, type UserState, type AdminActivityLog, type User, IS_MOCK } from "./supabase";
 
 const BUCKET = "log-images";
+export type RegistrableRole = Extract<UserRole, "staff" | "intern">;
 
 // --- State machine -------------------------------------------------
 const ALLOWED_TRANSITIONS: Record<string, LogType[]> = {
@@ -31,6 +32,7 @@ const STATE_LABELS: Record<string, string> = {
 
 const WALK_IN_ROLES = new Set<UserRole>(["guest", "client"]);
 const USER_ROLES: UserRole[] = ["staff", "intern", "guest", "client", "admin"];
+const REGISTRABLE_ROLES: RegistrableRole[] = ["staff", "intern"];
 
 interface UserProfile {
   name: string;
@@ -55,6 +57,11 @@ function roleLabel(role: UserRole): string {
 function normalizeUserRole(role: string): UserRole | null {
   const normalizedRole = role.trim().toLowerCase();
   return USER_ROLES.find((userRole) => userRole === normalizedRole) ?? null;
+}
+
+function normalizeRegistrableRole(role: string): RegistrableRole | null {
+  const normalizedRole = role.trim().toLowerCase();
+  return REGISTRABLE_ROLES.find((userRole) => userRole === normalizedRole) ?? null;
 }
 
 function addNameSuggestion(
@@ -284,6 +291,69 @@ function upsertMockUser(name: string, role: UserRole, state: UserState) {
     users.push(user);
   }
   saveMockUsers(users);
+}
+
+export async function getStaffInternUsers(): Promise<User[]> {
+  if (IS_MOCK) {
+    return getMockUsers()
+      .filter((user) => REGISTRABLE_ROLES.includes(user.role as RegistrableRole))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const { data, error } = await supabase.rpc("get_staff_intern_users");
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as User[])
+    .map((user) => ({
+      ...user,
+      role: normalizeRegistrableRole(user.role) ?? user.role,
+      state: user.state ?? "out_of_office",
+    }))
+    .filter((user): user is User => REGISTRABLE_ROLES.includes(user.role as RegistrableRole))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function registerStaffOrIntern(name: string, role: RegistrableRole): Promise<User> {
+  const trimmedName = name.trim();
+  const normalizedRole = normalizeRegistrableRole(role);
+
+  if (!trimmedName) throw new Error("Please enter a name.");
+  if (!normalizedRole) throw new Error("Only staff and interns can be registered here.");
+
+  if (IS_MOCK) {
+    const users = getMockUsers();
+    const user: User = {
+      name: trimmedName,
+      role: normalizedRole,
+      state: "out_of_office",
+      updated_at: new Date().toISOString(),
+    };
+    const existingIndex = users.findIndex((existingUser) => normalizeName(existingUser.name) === normalizeName(trimmedName));
+
+    if (existingIndex >= 0) {
+      users[existingIndex] = user;
+    } else {
+      users.push(user);
+    }
+
+    saveMockUsers(users);
+    return user;
+  }
+
+  const { data, error } = await supabase.rpc("register_staff_intern_user", {
+    p_name: trimmedName,
+    p_role: normalizedRole,
+  });
+
+  if (error) throw new Error(error.message);
+
+  const registeredUser = Array.isArray(data) ? data[0] : data;
+  return {
+    name: registeredUser.name,
+    role: normalizeRegistrableRole(registeredUser.role) ?? normalizedRole,
+    state: registeredUser.state ?? "out_of_office",
+    updated_at: registeredUser.updated_at ?? new Date().toISOString(),
+  };
 }
 
 function getMockActivityLogs(): AdminActivityLog[] {

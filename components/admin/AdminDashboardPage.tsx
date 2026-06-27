@@ -11,6 +11,7 @@ import FilterBar from "./FilterBar";
 import AttendanceTable from "./AttendanceTable";
 import SecurityAuditTable from "./SecurityAuditTable";
 import LogDetailModal from "./LogDetailModal";
+import UserRegistrationPanel from "./UserRegistrationPanel";
 
 type SortKey = "date-desc" | "date-asc" | "name-asc" | "name-desc";
 type TypeFilter = "all" | LogType;
@@ -22,7 +23,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"attendance" | "security">("attendance");
+  const [activeTab, setActiveTab] = useState<"attendance" | "security" | "registration">("attendance");
   const [securityLogs, setSecurityLogs] = useState<AdminActivityLog[]>([]);
   const [securityLoading, setSecurityLoading] = useState(false);
 
@@ -201,6 +202,12 @@ export default function AdminDashboardPage() {
         >
           🛡️ Administrative Security Audits
         </button>
+        <button
+          onClick={() => { playClickSound(); setActiveTab("registration"); }}
+          className={`px-5 py-3 text-sm font-bold border-b-2 transition ${activeTab === "registration" ? "border-brand-blue-600 text-brand-blue-600" : "border-transparent text-ink-500 hover:text-ink-700"}`}
+        >
+          👤 User Registration
+        </button>
       </div>
 
       {error && (
@@ -238,6 +245,10 @@ export default function AdminDashboardPage() {
 
       {activeTab === "security" && (
         <SecurityAuditTable logs={securityLogs} loading={securityLoading} />
+      )}
+
+      {activeTab === "registration" && (
+        <UserRegistrationPanel />
       )}
 
       {selectedLog && (

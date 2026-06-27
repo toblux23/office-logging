@@ -146,6 +146,36 @@ $$;
 
 grant execute on function upsert_user_state(text, text, user_state) to anon, authenticated;
 
+-- RPC to register a user as staff or intern (admin registration)
+create or replace function register_staff_intern_user(p_name text, p_role text)
+returns table(name text, role text, state user_state, updated_at timestamptz)
+language sql
+security definer
+as $$
+  insert into public.users (name, role, state, updated_at)
+  values (btrim(p_name), p_role, 'out_of_office', now())
+  on conflict (name)
+  do update set role = excluded.role, updated_at = now()
+  returning users.name, users.role, users.state, users.updated_at;
+$$;
+
+grant execute on function register_staff_intern_user(text, text) to anon, authenticated;
+
+-- RPC to list all staff and intern users for admin panel
+create or replace function get_staff_intern_users()
+returns table(name text, role text, state user_state, updated_at timestamptz)
+language sql
+security definer
+stable
+as $$
+  select u.name, u.role, u.state, u.updated_at
+  from public.users u
+  where u.role in ('staff', 'intern')
+  order by u.name;
+$$;
+
+grant execute on function get_staff_intern_users() to anon, authenticated;
+
 -- 3. Row Level Security ----------------------------------------
 -- The kiosk inserts anonymously (anon key), but reading logs is
 -- restricted to authenticated admins only.
