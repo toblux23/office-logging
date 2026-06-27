@@ -30,6 +30,7 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 const WALK_IN_ROLES = new Set<UserRole>(["guest", "client"]);
+const USER_ROLES: UserRole[] = ["staff", "intern", "guest", "client", "admin"];
 
 interface UserProfile {
   name: string;
@@ -49,6 +50,25 @@ function normalizeName(name: string): string {
 
 function roleLabel(role: UserRole): string {
   return role;
+}
+
+function normalizeUserRole(role: string): UserRole | null {
+  const normalizedRole = role.trim().toLowerCase();
+  return USER_ROLES.find((userRole) => userRole === normalizedRole) ?? null;
+}
+
+function addNameSuggestion(
+  suggestionsByName: Map<string, { name: string; role: UserRole }>,
+  name: string,
+  role: string
+) {
+  const normalizedRole = normalizeUserRole(role);
+  if (!name.trim() || !normalizedRole) return;
+
+  const normalizedName = normalizeName(name);
+  if (!suggestionsByName.has(normalizedName)) {
+    suggestionsByName.set(normalizedName, { name: name.trim(), role: normalizedRole });
+  }
 }
 
 function assertAllowedAction(currentState: string, type: LogType, name: string, role?: UserRole): void {
@@ -76,7 +96,13 @@ function assertRoleMatches(profile: UserProfile, selectedRole: UserRole, inputNa
 
 async function getUserProfile(name: string): Promise<UserProfile | null> {
   if (IS_MOCK) {
-    return getMockUser(name);
+    const profile = getMockUser(name);
+    if (!profile) return null;
+
+    return {
+      ...profile,
+      role: normalizeUserRole(profile.role) ?? profile.role,
+    };
   }
 
   const { data, error } = await supabase.rpc("get_user_profile", { p_name: name });
@@ -87,7 +113,7 @@ async function getUserProfile(name: string): Promise<UserProfile | null> {
 
   return {
     name: profile.name,
-    role: profile.role as UserRole,
+    role: normalizeUserRole(profile.role) ?? (profile.role as UserRole),
     state: profile.state as UserState,
   };
 }
@@ -213,9 +239,8 @@ function saveMockLogs(logs: LogEntry[]) {
 function getMockUsers(): User[] {
   if (typeof window === "undefined") return [];
   const stored = localStorage.getItem("office_users");
-  if (stored) return JSON.parse(stored);
-
   const usersByName = new Map<string, User>();
+
   for (const log of getMockLogs()) {
     const key = normalizeName(log.name);
     if (!usersByName.has(key)) {
@@ -225,6 +250,12 @@ function getMockUsers(): User[] {
         state: log.state,
         updated_at: log.created_at,
       });
+    }
+  }
+
+  if (stored) {
+    for (const user of JSON.parse(stored) as User[]) {
+      usersByName.set(normalizeName(user.name), user);
     }
   }
 
@@ -461,16 +492,33 @@ export async function getLogs(limit = 200): Promise<LogEntry[]> {
 
 /** Get list of auto-search suggestions from the user directory. */
 export async function getNameSuggestions(): Promise<Array<{ name: string; role: UserRole }>> {
+  const suggestionsByName = new Map<string, { name: string; role: UserRole }>();
+
   if (IS_MOCK) {
-    return getMockUsers()
-      .map(({ name, role }) => ({ name, role }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    for (const { name, role } of getMockUsers()) {
+      addNameSuggestion(suggestionsByName, name, role);
+    }
+    return Array.from(suggestionsByName.values()).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   const { data, error } = await supabase.rpc("get_user_suggestions");
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.warn("Could not load user directory suggestions:", error.message);
+  } else {
+    for (const { name, role } of (data ?? []) as Array<{ name: string; role: string }>) {
+      addNameSuggestion(suggestionsByName, name, role);
+    }
+  }
 
-  return ((data ?? []) as Array<{ name: string; role: UserRole }>).sort((a, b) => a.name.localeCompare(b.name));
+  try {
+    for (const { name, role } of await getLogs(1000)) {
+      addNameSuggestion(suggestionsByName, name, role);
+    }
+  } catch (error) {
+    console.warn("Could not merge log names into suggestions:", error);
+  }
+
+  return Array.from(suggestionsByName.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Calculate user's current consecutive login streak in days */

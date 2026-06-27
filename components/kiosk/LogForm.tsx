@@ -49,6 +49,10 @@ function normalizeName(name: string): string {
   return name.trim().toLowerCase();
 }
 
+function normalizeRole(role: UserRole | string): string {
+  return role.toLowerCase();
+}
+
 function mergeSuggestions(
   currentSuggestions: Array<{ name: string; role: UserRole }>,
   newSuggestions: Array<{ name: string; role: UserRole }>
@@ -81,7 +85,7 @@ function getRoleVerificationError(
     const name = person.name.trim();
     const registeredPerson = suggestionsByName.get(normalizeName(name));
 
-    if (registeredPerson?.role === person.role) continue;
+    if (registeredPerson && normalizeRole(registeredPerson.role) === normalizeRole(person.role)) continue;
     if (!registeredPerson && action === "login" && WALK_IN_ROLES.has(person.role)) continue;
 
     if (registeredPerson) {
@@ -164,7 +168,21 @@ export default function LogForm() {
 
   function updatePersonRole(index: number, role: UserRole) {
     playClickSound();
-    setPeople((current) => current.map((person, currentIndex) => (currentIndex === index ? { ...person, role } : person)));
+    setPeople((current) =>
+      current.map((person, currentIndex) => {
+        if (currentIndex !== index) return person;
+
+        const selectedNameExistsForRole = suggestions.some(
+          (suggestion) => normalizeRole(suggestion.role) === normalizeRole(role) && normalizeName(suggestion.name) === normalizeName(person.name)
+        );
+
+        return {
+          ...person,
+          role,
+          name: person.name.trim().length === 0 || selectedNameExistsForRole ? person.name : "",
+        };
+      })
+    );
   }
 
   function handleSelectSuggestion(index: number, suggestion: { name: string; role: UserRole }) {

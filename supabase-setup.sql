@@ -76,9 +76,24 @@ language sql
 security definer
 stable
 as $$
-  select u.name, u.role, u.state
-  from public.users u
-  where lower(u.name) = lower(btrim(p_name))
+  select profile.name, profile.role, profile.state
+  from (
+    (
+      select u.name, u.role, u.state, 0 as source_rank
+      from public.users u
+      where lower(u.name) = lower(btrim(p_name))
+      limit 1
+    )
+    union all
+    (
+      select l.name, l.role, l.state, 1 as source_rank
+      from public.logs l
+      where lower(l.name) = lower(btrim(p_name))
+      order by l.created_at desc
+      limit 1
+    )
+  ) profile
+  order by profile.source_rank
   limit 1;
 $$;
 
@@ -91,9 +106,28 @@ language sql
 security definer
 stable
 as $$
-  select u.name, u.role
-  from public.users u
-  order by lower(u.name);
+  with latest_logs as (
+    select distinct on (lower(btrim(l.name)))
+      l.name,
+      l.role,
+      1 as source_rank
+    from public.logs l
+    where btrim(l.name) <> ''
+    order by lower(btrim(l.name)), l.created_at desc
+  ),
+  directory as (
+    select u.name, u.role, 0 as source_rank
+    from public.users u
+    where btrim(u.name) <> ''
+    union all
+    select latest_logs.name, latest_logs.role, latest_logs.source_rank
+    from latest_logs
+  )
+  select distinct on (lower(btrim(directory.name)))
+    directory.name,
+    directory.role
+  from directory
+  order by lower(btrim(directory.name)), directory.source_rank;
 $$;
 
 grant execute on function get_user_suggestions() to anon, authenticated;
