@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getStaffInternUsers, registerStaffOrIntern, createActivityLog } from "@/lib/logs";
+import { createPortal } from "react-dom";
+import {
+  getStaffInternUsers,
+  registerStaffOrIntern,
+  renameUser,
+  deleteUser,
+  updateUserRole,
+  createActivityLog,
+} from "@/lib/logs";
 import type { RegistrableRole } from "@/lib/logs";
 import type { User, UserState } from "@/lib/supabase";
 import { playClickSound } from "@/lib/audio";
@@ -67,6 +75,254 @@ function UserIcon() {
   );
 }
 
+function PencilIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+interface EditModalProps {
+  user: User;
+  onClose: () => void;
+  onSave: (newName: string, newRole: RegistrableRole) => Promise<void>;
+}
+
+function EditModal({ user, onClose, onSave }: EditModalProps) {
+  const [name, setName] = useState(user.name);
+  const [role, setRole] = useState<RegistrableRole>(user.role as RegistrableRole);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    playClickSound();
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(name.trim(), role);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm animate-fadeIn">
+      <div className="w-full max-w-md rounded-[18px] border border-surface-200 bg-white p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-sm font-bold text-ink-900">Edit User</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-ink-400 hover:text-ink-600 cursor-pointer"
+            aria-label="Close"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor="edit-name"
+              className="text-[10px] font-bold text-ink-500 uppercase tracking-wider"
+            >
+              Full Name
+            </label>
+            <input
+              id="edit-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={saving}
+              className="rounded-xl border border-surface-200 bg-white px-3 py-2.5 text-sm text-ink-900 placeholder-ink-400 outline-none transition focus:border-brand-blue-500 focus:ring-1 focus:ring-brand-blue-500/20 disabled:opacity-50"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor="edit-role"
+              className="text-[10px] font-bold text-ink-500 uppercase tracking-wider"
+            >
+              Role
+            </label>
+            <select
+              id="edit-role"
+              value={role}
+              onChange={(e) => {
+                playClickSound();
+                setRole(e.target.value as RegistrableRole);
+              }}
+              disabled={saving}
+              className="rounded-xl border border-surface-200 bg-white px-3 py-2.5 text-sm text-ink-900 outline-none transition focus:border-brand-blue-500 cursor-pointer disabled:opacity-50"
+            >
+              {ROLE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.emoji} {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {error && (
+            <p className="text-xs font-bold text-red-500">✕ {error}</p>
+          )}
+
+          <div className="flex items-center gap-3 justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="rounded-xl border border-surface-200 px-4 py-2 text-xs font-bold text-ink-600 transition hover:bg-surface-50 cursor-pointer disabled:opacity-40"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !name.trim()}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-blue-600 px-5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-brand-blue-500 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {saving ? (
+                <>
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  Saving…
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+interface ConfirmDeleteModalProps {
+  user: User;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}
+
+function ConfirmDeleteModal({ user, onClose, onConfirm }: ConfirmDeleteModalProps) {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    playClickSound();
+    setDeleting(true);
+    setError(null);
+    try {
+      await onConfirm();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm animate-fadeIn">
+      <div className="w-full max-w-sm rounded-[18px] border border-surface-200 bg-white p-6 shadow-xl">
+        <h3 className="text-sm font-bold text-ink-900 mb-2">Delete User</h3>
+        <p className="text-xs text-ink-600 mb-5">
+          Are you sure you want to delete <strong>{user.name}</strong>? This action cannot be undone.
+        </p>
+
+        {error && (
+          <p className="text-xs font-bold text-red-500 mb-4">✕ {error}</p>
+        )}
+
+        <div className="flex items-center gap-3 justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deleting}
+            className="rounded-xl border border-surface-200 px-4 py-2 text-xs font-bold text-ink-600 transition hover:bg-surface-50 cursor-pointer disabled:opacity-40"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-red-500 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {deleting ? (
+              <>
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                Deleting…
+              </>
+            ) : (
+              <>
+                <TrashIcon />
+                Delete User
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function UserRegistrationPanel() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,6 +331,8 @@ export default function UserRegistrationPanel() {
   const [role, setRole] = useState<RegistrableRole>("staff");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [searchFilter, setSearchFilter] = useState("");
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -124,6 +382,46 @@ export default function UserRegistrationPanel() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleEditSave(newName: string, newRole: RegistrableRole) {
+    if (!editingUser) return;
+
+    const nameChanged = newName !== editingUser.name;
+    const roleChanged = newRole !== editingUser.role;
+
+    if (!nameChanged && !roleChanged) return;
+
+    if (nameChanged) {
+      await renameUser(editingUser.name, newName);
+      await createActivityLog(
+        "RENAME_USER",
+        `Admin renamed "${editingUser.name}" to "${newName}"`
+      );
+    }
+
+    if (roleChanged) {
+      await updateUserRole(nameChanged ? newName : editingUser.name, newRole);
+      await createActivityLog(
+        "UPDATE_USER_ROLE",
+        `Admin changed role of "${nameChanged ? newName : editingUser.name}" from ${editingUser.role} to ${newRole}`
+      );
+    }
+
+    await loadUsers();
+  }
+
+  async function handleDeleteConfirm() {
+    if (!deletingUser) return;
+
+    const userName = deletingUser.name;
+    await deleteUser(userName);
+    await createActivityLog(
+      "DELETE_USER",
+      `Admin deleted user "${userName}"`
+    );
+    setDeletingUser(null);
+    await loadUsers();
   }
 
   const filteredUsers = searchFilter.trim()
@@ -293,6 +591,9 @@ export default function UserRegistrationPanel() {
                 <th className="px-5 py-3.5 font-bold uppercase tracking-wider text-xs">
                   Last Updated
                 </th>
+                <th className="px-5 py-3.5 font-bold uppercase tracking-wider text-xs text-right">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-100">
@@ -319,6 +620,34 @@ export default function UserRegistrationPanel() {
                     <td className="px-5 py-3 text-ink-500 font-medium">
                       {new Date(user.updated_at).toLocaleString()}
                     </td>
+                    <td className="px-5 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playClickSound();
+                            setEditingUser(user);
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-ink-600 shadow-sm transition hover:bg-brand-blue-50 hover:text-brand-blue-700 hover:border-brand-blue-200 active:scale-[0.97] cursor-pointer"
+                          aria-label={`Edit ${user.name}`}
+                        >
+                          <PencilIcon />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playClickSound();
+                            setDeletingUser(user);
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-red-600 shadow-sm transition hover:bg-red-50 hover:border-red-200 active:scale-[0.97] cursor-pointer"
+                          aria-label={`Delete ${user.name}`}
+                        >
+                          <TrashIcon />
+                          Delete
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -326,6 +655,26 @@ export default function UserRegistrationPanel() {
           </table>
         )}
       </div>
+
+      {/* Edit Modal */}
+      {editingUser && typeof window !== "undefined" && createPortal(
+        <EditModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSave={handleEditSave}
+        />,
+        document.body
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingUser && typeof window !== "undefined" && createPortal(
+        <ConfirmDeleteModal
+          user={deletingUser}
+          onClose={() => setDeletingUser(null)}
+          onConfirm={handleDeleteConfirm}
+        />,
+        document.body
+      )}
     </div>
   );
 }

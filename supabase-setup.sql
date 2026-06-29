@@ -147,16 +147,22 @@ $$;
 grant execute on function upsert_user_state(text, text, user_state) to anon, authenticated;
 
 -- RPC to register a user as staff or intern (admin registration)
+-- Fails if the user already exists — use update_user_role to change roles.
 create or replace function register_staff_intern_user(p_name text, p_role text)
 returns table(name text, role text, state user_state, updated_at timestamptz)
-language sql
+language plpgsql
 security definer
 as $$
-  insert into public.users (name, role, state, updated_at)
-  values (btrim(p_name), p_role, 'out_of_office', now())
-  on conflict (name)
-  do update set role = excluded.role, updated_at = now()
-  returning users.name, users.role, users.state, users.updated_at;
+begin
+  if exists (select 1 from public.users where lower(name) = lower(btrim(p_name))) then
+    raise exception 'User "%" already exists. Edit them instead.', btrim(p_name);
+  end if;
+
+  return query
+    insert into public.users (name, role, state, updated_at)
+    values (btrim(p_name), p_role, 'out_of_office', now())
+    returning users.name, users.role, users.state, users.updated_at;
+end;
 $$;
 
 grant execute on function register_staff_intern_user(text, text) to anon, authenticated;
@@ -175,6 +181,57 @@ as $$
 $$;
 
 grant execute on function get_staff_intern_users() to anon, authenticated;
+
+-- RPC to delete a user from the users table
+create or replace function delete_user(p_name text)
+returns void
+language sql
+security definer
+as $$
+  delete from public.users
+  where lower(name) = lower(btrim(p_name));
+$$;
+
+grant execute on function delete_user(text) to anon, authenticated;
+
+-- RPC to rename a user (updates the primary key name)
+create or replace function rename_user(p_old_name text, p_new_name text)
+returns table(name text, role text, state user_state, updated_at timestamptz)
+language plpgsql
+security definer
+as $$
+begin
+  if exists (select 1 from public.users where lower(name) = lower(btrim(p_new_name))) then
+    raise exception 'User "%" already exists.', btrim(p_new_name);
+  end if;
+
+  return query
+    update public.users
+    set name = btrim(p_new_name), updated_at = now()
+    where lower(name) = lower(btrim(p_old_name))
+    returning users.name, users.role, users.state, users.updated_at;
+
+  if not found then
+    raise exception 'User "%" not found.', btrim(p_old_name);
+  end if;
+end;
+$$;
+
+grant execute on function rename_user(text, text) to anon, authenticated;
+
+-- RPC to update a user's role
+create or replace function update_user_role(p_name text, p_role text)
+returns table(name text, role text, state user_state, updated_at timestamptz)
+language sql
+security definer
+as $$
+  update public.users
+  set role = p_role, updated_at = now()
+  where lower(name) = lower(btrim(p_name))
+  returning users.name, users.role, users.state, users.updated_at;
+$$;
+
+grant execute on function update_user_role(text, text) to anon, authenticated;
 
 -- 3. Row Level Security ----------------------------------------
 -- The kiosk inserts anonymously (anon key), but reading logs is
