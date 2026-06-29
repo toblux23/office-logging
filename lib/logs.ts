@@ -322,18 +322,20 @@ export async function registerStaffOrIntern(name: string, role: RegistrableRole)
 
   if (IS_MOCK) {
     const users = getMockUsers();
-    const exists = users.some((u) => normalizeName(u.name) === normalizeName(trimmedName));
-    if (exists) {
-      throw new Error(`User "${trimmedName}" already exists. Edit them instead.`);
-    }
-
     const user: User = {
       name: trimmedName,
       role: normalizedRole,
       state: "out_of_office",
       updated_at: new Date().toISOString(),
     };
-    users.push(user);
+    const existingIndex = users.findIndex((existingUser) => normalizeName(existingUser.name) === normalizeName(trimmedName));
+
+    if (existingIndex >= 0) {
+      users[existingIndex] = user;
+    } else {
+      users.push(user);
+    }
+
     saveMockUsers(users);
     return user;
   }
@@ -637,104 +639,6 @@ export function calculateStreak(logs: LogEntry[], name: string): number {
   }
 
   return streak;
-}
-
-// --- Admin CRUD for users ------------------------------------------
-
-export async function deleteUser(name: string): Promise<void> {
-  const trimmedName = name.trim();
-  if (!trimmedName) throw new Error("Please provide a name.");
-
-  if (IS_MOCK) {
-    const users = getMockUsers();
-    const filtered = users.filter((u) => normalizeName(u.name) !== normalizeName(trimmedName));
-    if (filtered.length === users.length) {
-      throw new Error(`User "${trimmedName}" not found.`);
-    }
-    saveMockUsers(filtered);
-    return;
-  }
-
-  const { error } = await supabase.rpc("delete_user", { p_name: trimmedName });
-  if (error) throw new Error(error.message);
-}
-
-export async function renameUser(oldName: string, newName: string): Promise<User> {
-  const trimmedOld = oldName.trim();
-  const trimmedNew = newName.trim();
-
-  if (!trimmedOld) throw new Error("Please provide the current name.");
-  if (!trimmedNew) throw new Error("Please provide a new name.");
-  if (normalizeName(trimmedOld) === normalizeName(trimmedNew)) {
-    throw new Error("New name is the same as the current name.");
-  }
-
-  if (IS_MOCK) {
-    const users = getMockUsers();
-    const idx = users.findIndex((u) => normalizeName(u.name) === normalizeName(trimmedOld));
-    if (idx < 0) throw new Error(`User "${trimmedOld}" not found.`);
-
-    const newNameTaken = users.some(
-      (u, i) => i !== idx && normalizeName(u.name) === normalizeName(trimmedNew)
-    );
-    if (newNameTaken) {
-      throw new Error(`User "${trimmedNew}" already exists.`);
-    }
-
-    users[idx] = { ...users[idx], name: trimmedNew, updated_at: new Date().toISOString() };
-    saveMockUsers(users);
-    return users[idx];
-  }
-
-  const { data, error } = await supabase.rpc("rename_user", {
-    p_old_name: trimmedOld,
-    p_new_name: trimmedNew,
-  });
-  if (error) throw new Error(error.message);
-
-  const result = Array.isArray(data) ? data[0] : data;
-  if (!result) throw new Error(`User "${trimmedOld}" not found.`);
-
-  return {
-    name: result.name,
-    role: result.role as UserRole,
-    state: result.state as UserState,
-    updated_at: result.updated_at,
-  };
-}
-
-export async function updateUserRole(name: string, newRole: RegistrableRole): Promise<User> {
-  const trimmedName = name.trim();
-  const normalizedRole = normalizeRegistrableRole(newRole);
-
-  if (!trimmedName) throw new Error("Please provide a name.");
-  if (!normalizedRole) throw new Error("Only staff and intern roles are valid.");
-
-  if (IS_MOCK) {
-    const users = getMockUsers();
-    const idx = users.findIndex((u) => normalizeName(u.name) === normalizeName(trimmedName));
-    if (idx < 0) throw new Error(`User "${trimmedName}" not found.`);
-
-    users[idx] = { ...users[idx], role: normalizedRole, updated_at: new Date().toISOString() };
-    saveMockUsers(users);
-    return users[idx];
-  }
-
-  const { data, error } = await supabase.rpc("update_user_role", {
-    p_name: trimmedName,
-    p_role: normalizedRole,
-  });
-  if (error) throw new Error(error.message);
-
-  const result = Array.isArray(data) ? data[0] : data;
-  if (!result) throw new Error(`User "${trimmedName}" not found.`);
-
-  return {
-    name: result.name,
-    role: normalizeRegistrableRole(result.role) ?? normalizedRole,
-    state: result.state as UserState,
-    updated_at: result.updated_at,
-  };
 }
 
 /** Log administrative audit logs */
