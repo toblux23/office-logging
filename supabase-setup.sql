@@ -29,19 +29,36 @@ create index if not exists admin_activity_logs_created_at_idx on public.admin_ac
 -- 2b. User state tracking ---------------------------------------
 -- Tracks whether a person is currently in office, out of office, or on break.
 
--- Recreate user_state enum with clearer names
-alter table public.logs alter column state type text;
-drop type if exists user_state;
-create type user_state as enum ('in_office', 'out_of_office', 'on_break');
-alter table public.logs alter column state type user_state
-  using (
-    case state::text
-      when 'present' then 'in_office'::user_state
-      when 'absent' then 'out_of_office'::user_state
-      when 'on_break' then 'on_break'::user_state
-      else 'out_of_office'::user_state
-    end
-  );
+-- Ensure the user_state enum type exists (idempotent)
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'user_state') then
+    create type user_state as enum ('in_office', 'out_of_office', 'on_break');
+  end if;
+end;
+$$;
+
+-- Migrate logs.state from old text format ('present'/'absent') to enum if needed
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'logs'
+    and column_name = 'state' and data_type = 'text'
+  ) then
+    alter table public.logs alter column state type user_state
+      using (
+        case state::text
+          when 'present' then 'in_office'::user_state
+          when 'absent' then 'out_of_office'::user_state
+          when 'on_break' then 'on_break'::user_state
+          else 'out_of_office'::user_state
+        end
+      );
+  end if;
+end;
+$$;
+
 alter table public.logs alter column state set default 'out_of_office';
 
 create index if not exists logs_name_created_at_idx on public.logs (name, created_at desc);
