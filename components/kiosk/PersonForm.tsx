@@ -22,6 +22,7 @@ interface PersonFormProps {
   allLogs: LogEntry[];
   suggestions: Suggestion[];
   saving: boolean;
+  maxPeople: number;
   onUpdateName: (index: number, value: string) => void;
   onUpdateRole: (index: number, role: UserRole) => void;
   onRemove: (index: number) => void;
@@ -38,6 +39,7 @@ export default function PersonForm({
   allLogs,
   suggestions,
   saving,
+  maxPeople,
   onUpdateName,
   onUpdateRole,
   onRemove,
@@ -67,12 +69,12 @@ export default function PersonForm({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <label className="text-xs font-bold uppercase tracking-wider text-ink-500">Session Colleagues</label>
+        <label className="text-xs font-bold uppercase tracking-wider text-ink-500">Session Colleagues ({people.length}/{maxPeople})</label>
         <button
           type="button"
           onClick={() => { playClickSound(); onAdd(); }}
-          disabled={saving}
-          className="cursor-pointer text-xs font-extrabold text-brand-blue-600 transition hover:text-brand-blue-500"
+          disabled={saving || people.length >= maxPeople}
+          className="cursor-pointer text-xs font-extrabold text-brand-blue-600 transition hover:text-brand-blue-500 disabled:opacity-30 disabled:cursor-not-allowed"
         >
           ➕ Add Friend
         </button>
@@ -91,6 +93,18 @@ export default function PersonForm({
 
         return (
           <div key={index} className="relative flex flex-col gap-2 rounded-2xl border border-brand-blue-100 bg-brand-blue-50/20 p-4 shadow-sm">
+            {index > 0 && (
+              <button
+                type="button"
+                onClick={() => { playClickSound(); onRemove(index); }}
+                disabled={saving}
+                title="Remove person"
+                className="absolute right-2 top-2 cursor-pointer rounded-xl p-1.5 text-ink-400 transition hover:bg-brand-blue-100 hover:text-brand-blue-600"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            )}
+
             <div className="flex items-start gap-3">
               <div className="relative flex-1">
                 <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-ink-500">Name</label>
@@ -128,18 +142,6 @@ export default function PersonForm({
                   <option value="admin">Admin</option>
                 </select>
               </div>
-
-              {index > 0 && (
-                <button
-                  type="button"
-                  onClick={() => { playClickSound(); onRemove(index); }}
-                  disabled={saving}
-                  title="Remove person"
-                  className="mt-6 cursor-pointer rounded-xl p-2 text-ink-400 transition hover:bg-brand-blue-50 hover:text-brand-blue-600"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="12"/></svg>
-                </button>
-              )}
             </div>
 
             {person.name.trim().length > 0 && streak > 0 && (

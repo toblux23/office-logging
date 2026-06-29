@@ -43,6 +43,7 @@ const GREETINGS = [
   "🧠 Work hard, collaborate, and make an impact!",
 ];
 
+const MAX_PEOPLE = 4;
 const WALK_IN_ROLES = new Set<UserRole>(["guest", "client"]);
 
 function normalizeName(name: string): string {
@@ -326,6 +327,7 @@ export default function LogForm() {
             allLogs={allLogs}
             suggestions={suggestions}
             saving={saving}
+            maxPeople={MAX_PEOPLE}
             onUpdateName={updatePersonName}
             onUpdateRole={updatePersonRole}
             onRemove={removePerson}
