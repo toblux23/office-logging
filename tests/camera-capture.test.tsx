@@ -1,10 +1,14 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import CameraCapture from "@/components/shared/CameraCapture";
 
 // ---------- Mocks ----------
+
+const { mockDetectForVideo } = vi.hoisted(() => ({
+  mockDetectForVideo: vi.fn(() => ({ faceLandmarks: [[{ x: 0.5, y: 0.5, z: 0 }]] })),
+}));
 
 vi.mock("@/lib/audio", () => ({
   playClickSound: vi.fn(),
@@ -16,12 +20,16 @@ vi.mock("@/lib/audio", () => ({
 
 vi.mock("@mediapipe/tasks-vision", () => ({
   FaceLandmarker: {
-    createFromOptions: vi.fn(() => Promise.resolve({ close: vi.fn(), detectForVideo: vi.fn(() => ({ faceLandmarks: [] })) })),
+    createFromOptions: vi.fn(() => Promise.resolve({ close: vi.fn(), detectForVideo: mockDetectForVideo })),
   },
   FilesetResolver: {
     forVisionTasks: vi.fn(() => Promise.resolve({})),
   },
 }));
+
+// Polyfill requestAnimationFrame for jsdom so MediaPipe tracking callbacks fire
+const rAFStub = vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(cb, 16));
+const cAFStub = vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
 
 function createMockVideo() {
   let currentTime = 0;
@@ -83,6 +91,12 @@ beforeEach(() => {
   mockVideo.videoWidth = 1280;
   mockVideo.videoHeight = 960;
   mockVideo.readyState = 4;
+
+  mockDetectForVideo.mockReturnValue({ faceLandmarks: [[{ x: 0.5, y: 0.5, z: 0 }]] });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 // ---------- Helpers ----------
@@ -221,4 +235,20 @@ describe("CameraCapture", () => {
     act(() => { onUserMediaErrorCallback?.(); });
     expect(screen.getByText(/could not access the camera/i)).toBeInTheDocument();
   });
+
+  it("blocks capture and shows error when no face is detected", async () => {
+    mockDetectForVideo.mockReturnValue({ faceLandmarks: [] });
+    const onCapture = vi.fn();
+    render(<CameraCapture onCapture={onCapture} />);
+    simulateCameraReady();
+
+    const captureBtn = screen.getByRole("button", { name: /capture photo/i });
+    await act(async () => { captureBtn.click(); });
+
+    await waitFor(() => {
+      expect(screen.getByText(/no face detected/i)).toBeInTheDocument();
+    }, { timeout: 10000 });
+
+    expect(onCapture).not.toHaveBeenCalled();
+  }, 15000);
 });

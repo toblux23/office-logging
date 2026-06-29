@@ -15,17 +15,25 @@ vi.mock("@/lib/audio", () => ({
   playErrorSound: vi.fn(),
 }));
 
+const { mockDetectForVideo } = vi.hoisted(() => ({
+  mockDetectForVideo: vi.fn(() => ({ faceLandmarks: [[{ x: 0.5, y: 0.5, z: 0 }]] })),
+}));
+
 vi.mock("@mediapipe/tasks-vision", () => ({
   FaceLandmarker: {
     createFromOptions: vi.fn(() => Promise.resolve({
       close: vi.fn(),
-      detectForVideo: vi.fn(() => ({ faceLandmarks: [] })),
+      detectForVideo: mockDetectForVideo,
     })),
   },
   FilesetResolver: {
     forVisionTasks: vi.fn(() => Promise.resolve({})),
   },
 }));
+
+// Polyfill requestAnimationFrame for jsdom so MediaPipe tracking callbacks fire
+const rAFStub = vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(cb, 16));
+const cAFStub = vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
 
 function createMockVideo() {
   let currentTime = 0;
@@ -110,6 +118,8 @@ beforeEach(() => {
   mockGetLogs.mockResolvedValue([]);
   mockGetNameSuggestions.mockResolvedValue([]);
   mockCalculateStreak.mockReturnValue(0);
+
+  mockDetectForVideo.mockReturnValue({ faceLandmarks: [[{ x: 0.5, y: 0.5, z: 0 }]] });
 });
 
 afterEach(() => {

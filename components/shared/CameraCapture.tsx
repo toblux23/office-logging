@@ -247,21 +247,17 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
   const [selectedStyle, setSelectedStyle] = useState<PhotoStyle>("normal");
   const [selectedFaceEffect, setSelectedFaceEffect] = useState<FaceEffect>("none");
   const [faceAnchors, setFaceAnchors] = useState<FaceAnchor[]>([]);
+  const faceAnchorsRef = useRef(faceAnchors);
+  faceAnchorsRef.current = faceAnchors;
   const [trackingReady, setTrackingReady] = useState(false);
-  const [trackingRequested, setTrackingRequested] = useState(false);
+  const [noFaceError, setNoFaceError] = useState(false);
 
   const selectedPhotoStyle = PHOTO_STYLES.find((style) => style.id === selectedStyle) ?? PHOTO_STYLES[0];
 
   useEffect(() => {
-    if (selectedFaceEffect !== "none") {
-      setTrackingRequested(true);
-    }
-  }, [selectedFaceEffect]);
-
-  useEffect(() => {
     let cancelled = false;
 
-    if (!trackingRequested || landmarkerRef.current) return;
+    if (landmarkerRef.current) return;
 
     async function loadFaceTracking() {
       try {
@@ -303,7 +299,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
     return () => {
       cancelled = true;
     };
-  }, [trackingRequested]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -316,7 +312,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
   }, []);
 
   useEffect(() => {
-    if (!cameraReady || !trackingReady || image || selectedFaceEffect === "none") {
+    if (!cameraReady || !trackingReady || image) {
       setFaceAnchors([]);
       return;
     }
@@ -395,6 +391,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
   const startCountdown = useCallback(() => {
     if (countdown !== null) return;
 
+    setNoFaceError(false);
     setCountdown(3);
     playTickSound();
 
@@ -414,6 +411,12 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
         setTimeout(() => {
           setFlash(false);
           setCountdown(null);
+
+          if (trackingReady && faceAnchorsRef.current.length === 0) {
+            setNoFaceError(true);
+            return;
+          }
+
           if (shot) {
             setImage(shot);
             onCapture(shot);
@@ -421,10 +424,11 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
         }, 600);
       }
     }, 1000);
-  }, [captureFilteredImage, countdown, onCapture]);
+  }, [captureFilteredImage, countdown, faceAnchors.length, onCapture, trackingReady]);
 
   const retake = useCallback(() => {
     setImage(null);
+    setNoFaceError(false);
     onCapture(null);
   }, [onCapture]);
 
@@ -464,6 +468,23 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
           </div>
         )}
 
+        {!image && !noFaceError && faceAnchors.length > 0 && selectedFaceEffect === "none" && (
+          <div className="pointer-events-none absolute inset-0 z-10">
+            {faceAnchors.map((anchor, index) => (
+              <div
+                key={index}
+                className="absolute border-[3px] border-emerald-400 rounded-2xl shadow-[0_0_12px_rgba(52,211,153,0.5)]"
+                style={{
+                  left: `${(anchor.centerX - anchor.width / 2) * 100}%`,
+                  top: `${(anchor.eyeY - anchor.height * 0.32) * 100}%`,
+                  width: `${anchor.width * 100}%`,
+                  height: `${anchor.height * 100}%`,
+                }}
+              />
+            ))}
+          </div>
+        )}
+
         {flash && (
           <div className="absolute inset-0 bg-white z-30 animate-flash pointer-events-none" />
         )}
@@ -476,10 +497,18 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
           </div>
         )}
 
-        {!image && !cameraReady && !error && (
+        {!image && !cameraReady && !error && !noFaceError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-ink-500 bg-surface-50">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-surface-200 border-t-brand-blue-600" />
             Initializing lens…
+          </div>
+        )}
+
+        {noFaceError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center bg-brand-blue-50 border border-brand-blue-200">
+            <span className="text-2xl">🧑</span>
+            <p className="text-sm font-bold text-brand-blue-700">No face detected</p>
+            <p className="text-xs text-ink-500">Please ensure your face is clearly visible and try again.</p>
           </div>
         )}
 
@@ -516,10 +545,12 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-3">
               <span className="text-[11px] font-bold uppercase tracking-wider text-ink-500">Face Filter</span>
-              {selectedFaceEffect !== "none" && (
-                <span className="text-[10px] font-semibold text-ink-400">
-                  {trackingReady ? (faceAnchors.length > 0 ? `Tracking ${faceAnchors.length} face${faceAnchors.length > 1 ? "s" : ""}` : "Find a face") : "Loading tracker"}
+              {trackingReady ? (
+                <span className={`text-[10px] font-semibold ${faceAnchors.length > 0 ? "text-emerald-600" : "text-amber-500"}`}>
+                  ● {faceAnchors.length > 0 ? "Face detected" : "No face detected"}
                 </span>
+              ) : (
+                <span className="text-[10px] font-semibold text-ink-400">Loading detection…</span>
               )}
             </div>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
@@ -557,7 +588,11 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
           disabled={!cameraReady || countdown !== null}
           className="w-full max-w-[280px] rounded-xl bg-brand-blue-600 py-3 text-sm font-bold text-white shadow-md shadow-brand-blue-100 hover:bg-brand-blue-500 active:scale-98 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
-          {countdown !== null ? "Preparing Shutter…" : "📷 Capture Photo"}
+          {countdown !== null
+            ? "Preparing Shutter…"
+            : noFaceError
+              ? "📷 Try Again"
+              : "📷 Capture Photo"}
         </button>
       )}
     </div>
