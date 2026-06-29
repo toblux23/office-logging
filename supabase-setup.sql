@@ -9,6 +9,7 @@ create table if not exists public.logs (
   name       text not null,
   type       text not null check (type in ('login', 'logout', 'break')),
   role       text not null check (role in ('staff', 'intern', 'guest', 'client', 'admin')),
+  state      text,
   image_url  text not null,
   created_at timestamptz not null default now()
 );
@@ -27,7 +28,6 @@ create index if not exists admin_activity_logs_created_at_idx on public.admin_ac
 
 -- 2b. User state tracking ---------------------------------------
 -- Tracks whether a person is currently in office, out of office, or on break.
--- The `state` column is set on each log entry to record the resulting state.
 
 -- Recreate user_state enum with clearer names
 alter table public.logs alter column state type text;
