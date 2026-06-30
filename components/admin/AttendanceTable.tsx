@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { calculateStreak } from "@/lib/logs";
 import type { LogEntry, LogType } from "@/lib/supabase";
 import { playClickSound } from "@/lib/audio";
+import Pagination from "./Pagination";
 
 const TYPE_LABEL: Record<LogType, string> = {
   login: "Log In",
@@ -44,6 +46,16 @@ interface AttendanceTableProps {
 }
 
 export default function AttendanceTable({ logs, visibleLogs, loading, onSelectLog }: AttendanceTableProps) {
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(visibleLogs.length / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const paginatedLogs = visibleLogs.slice((page - 1) * pageSize, page * pageSize);
+
   if (loading) {
     return <p className="text-ink-500 text-sm font-semibold">Loading attendance logs database…</p>;
   }
@@ -71,7 +83,7 @@ export default function AttendanceTable({ logs, visibleLogs, loading, onSelectLo
           </tr>
         </thead>
         <tbody className="divide-y divide-surface-100">
-          {visibleLogs.map((log) => (
+          {paginatedLogs.map((log) => (
             <tr
               key={log.id}
               onClick={() => { playClickSound(); onSelectLog(log); }}
@@ -148,6 +160,12 @@ export default function AttendanceTable({ logs, visibleLogs, loading, onSelectLo
           ))}
         </tbody>
       </table>
+      <Pagination
+        currentPage={page}
+        totalItems={visibleLogs.length}
+        pageSize={pageSize}
+        onPageChange={setPage}
+      />
     </div>
   );
 }

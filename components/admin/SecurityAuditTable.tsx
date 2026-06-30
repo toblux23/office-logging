@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { AdminActivityLog } from "@/lib/supabase";
+import Pagination from "./Pagination";
 
 interface SecurityAuditTableProps {
   logs: AdminActivityLog[];
@@ -8,6 +10,16 @@ interface SecurityAuditTableProps {
 }
 
 export default function SecurityAuditTable({ logs, loading }: SecurityAuditTableProps) {
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(logs.length / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const paginatedLogs = logs.slice((page - 1) * pageSize, page * pageSize);
+
   if (loading) {
     return <p className="text-ink-500 text-sm font-semibold">Loading security activities...</p>;
   }
@@ -27,7 +39,7 @@ export default function SecurityAuditTable({ logs, loading }: SecurityAuditTable
           </tr>
         </thead>
         <tbody className="divide-y divide-surface-100">
-          {logs.map((audit) => (
+          {paginatedLogs.map((audit) => (
             <tr key={audit.id} className="hover:bg-brand-blue-50/10">
               <td className="px-5 py-3.5 text-ink-500 font-medium">
                 {new Date(audit.created_at).toLocaleString()}
@@ -44,6 +56,12 @@ export default function SecurityAuditTable({ logs, loading }: SecurityAuditTable
           ))}
         </tbody>
       </table>
+      <Pagination
+        currentPage={page}
+        totalItems={logs.length}
+        pageSize={pageSize}
+        onPageChange={setPage}
+      />
     </div>
   );
 }
