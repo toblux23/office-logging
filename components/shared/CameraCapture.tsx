@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Webcam from "react-webcam";
 import type { FaceLandmarker } from "@mediapipe/tasks-vision";
-import { playTickSound, playShutterSound } from "@/lib/audio";
+import { playClickSound, playTickSound, playShutterSound } from "@/lib/audio";
 
 interface CameraCaptureProps {
   onCapture: (image: string | null) => void;
@@ -528,7 +528,10 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
                 <button
                   key={style.id}
                   type="button"
-                  onClick={() => setSelectedStyle(style.id)}
+                  onClick={() => {
+                    playClickSound();
+                    setSelectedStyle(style.id);
+                  }}
                   className={`flex min-h-12 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-[10px] font-bold transition ${
                     selectedStyle === style.id
                       ? "border-brand-blue-500 bg-brand-blue-50 text-brand-blue-700 shadow-sm"
@@ -558,7 +561,10 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
                 <button
                   key={effect.id}
                   type="button"
-                  onClick={() => setSelectedFaceEffect(effect.id)}
+                  onClick={() => {
+                    playClickSound();
+                    setSelectedFaceEffect(effect.id);
+                  }}
                   className={`min-h-10 cursor-pointer rounded-xl border px-2 py-2 text-[10px] font-bold transition ${
                     selectedFaceEffect === effect.id
                       ? "border-brand-blue-500 bg-brand-blue-50 text-brand-blue-700 shadow-sm"

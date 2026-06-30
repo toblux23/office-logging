@@ -97,6 +97,11 @@ export default function FilterBar({
     setShowSuggestions(false);
   }
 
+  function handleClearFilters() {
+    playClickSound();
+    onClearFilters();
+  }
+
   return (
     <div className="z-10 flex flex-col gap-4 rounded-[18px] border border-surface-200 bg-white p-5 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)]">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
@@ -229,7 +234,7 @@ export default function FilterBar({
         {hasFilters && (
           <button
             type="button"
-            onClick={onClearFilters}
+            onClick={handleClearFilters}
             className="text-xs text-brand-blue-600 hover:text-brand-blue-500 font-bold transition"
           >
             Clear all filters
