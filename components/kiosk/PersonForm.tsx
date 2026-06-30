@@ -139,7 +139,6 @@ export default function PersonForm({
                   <option value="staff">Staff</option>
                   <option value="guest">Guest</option>
                   <option value="client">Client</option>
-                  <option value="admin">Admin</option>
                 </select>
               </div>
             </div>

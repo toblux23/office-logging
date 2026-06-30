@@ -13,7 +13,7 @@ export const IS_MOCK =
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export type LogType = "login" | "logout" | "break";
-export type UserRole = "staff" | "intern" | "guest" | "client" | "admin";
+export type UserRole = "staff" | "intern" | "guest" | "client";
 export type UserState = "in_office" | "out_of_office" | "on_break";
 
 export interface LogEntry {
@@ -32,6 +32,11 @@ export interface User {
   role: UserRole;
   state: UserState;
   updated_at: string;
+}
+
+export interface AdminConfig {
+  email: string;
+  created_at: string;
 }
 
 export interface AdminActivityLog {

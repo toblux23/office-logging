@@ -31,12 +31,6 @@ describe("state transitions", () => {
       ).rejects.toThrow("not registered");
     });
 
-    it("cannot login as admin", async () => {
-      await expect(
-        createLog("NewAdmin", "login", DATA_URL, "admin")
-      ).rejects.toThrow("not registered");
-    });
-
     it("can login as client", async () => {
       const log = await createLog("NewClient", "login", DATA_URL, "client");
       expect(log.type).toBe("login");
@@ -172,7 +166,7 @@ describe("state transitions", () => {
 
       expect(suggestions).toEqual(
         expect.arrayContaining([
-          { name: "Alice Vance", role: "admin" },
+          { name: "Alice Vance", role: "staff" },
           { name: "Bob Smith", role: "staff" },
           { name: "Charlie Brown", role: "intern" },
         ])

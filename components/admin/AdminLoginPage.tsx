@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase, IS_MOCK } from "@/lib/supabase";
 import { playClickSound, playSuccessSound, playErrorSound } from "@/lib/audio";
-import { createActivityLog } from "@/lib/logs";
+import { createActivityLog, getAdminConfig } from "@/lib/logs";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -43,6 +43,13 @@ export default function AdminLoginPage() {
 
     const trimmedEmail = email.trim();
 
+    if (!trimmedEmail || password.length < 6) {
+      setLoading(false);
+      playErrorSound();
+      setError("Email is required and password must be at least 6 characters.");
+      return;
+    }
+
     if (showCaptcha) {
       if (parseInt(captchaInput) !== captchaAnswer) {
         setLoading(false);
@@ -58,6 +65,13 @@ export default function AdminLoginPage() {
       setTimeout(async () => {
         setLoading(false);
         if (trimmedEmail === "admin@startuplab.com" && password === "admin123") {
+          const config = await getAdminConfig(trimmedEmail);
+          if (!config) {
+            playErrorSound();
+            setError("Admin account not configured. Contact the system administrator.");
+            await createActivityLog("FAILED_SIGN_IN", `Admin not configured. Login attempt: ${trimmedEmail} (Local Mock)`);
+            return;
+          }
           playSuccessSound();
           if (typeof window !== "undefined") {
             localStorage.setItem("mock_admin_session", "true");
@@ -67,29 +81,42 @@ export default function AdminLoginPage() {
         } else {
           playErrorSound();
           setFailedAttempts((prev) => prev + 1);
-          setError("Invalid email or password. Hint for local testing: admin@startuplab.com / admin123");
+          setError("Invalid email or password.");
           await createActivityLog("FAILED_SIGN_IN", `Failed login attempt: ${trimmedEmail} (Local Mock)`);
         }
       }, 800);
-    } else {
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
-        password,
-      });
-      setLoading(false);
-
-      if (authError) {
-        playErrorSound();
-        setFailedAttempts((prev) => prev + 1);
-        setError(authError.message);
-        await createActivityLog("FAILED_SIGN_IN", `Failed login attempt: ${trimmedEmail}. Error: ${authError.message}`);
-        return;
-      }
-
-      playSuccessSound();
-      await createActivityLog("SIGN_IN", `Admin signed in successfully: ${trimmedEmail}`);
-      router.push("/logs");
+      return;
     }
+
+    const { data: signInData, error: authError } = await supabase.auth.signInWithPassword({
+      email: trimmedEmail,
+      password,
+    });
+
+    if (authError) {
+      setLoading(false);
+      playErrorSound();
+      setFailedAttempts((prev) => prev + 1);
+      setError(authError.message);
+      await createActivityLog("FAILED_SIGN_IN", `Failed login attempt: ${trimmedEmail}. Error: ${authError.message}`);
+      return;
+    }
+
+    const adminConfig = await getAdminConfig(signInData.user?.email).catch(() => null);
+
+    if (!adminConfig) {
+      await supabase.auth.signOut();
+      setLoading(false);
+      playErrorSound();
+      setError("You are not authorized as an admin.");
+      await createActivityLog("FAILED_SIGN_IN", `Unauthorized user attempted admin login: ${trimmedEmail}`);
+      return;
+    }
+
+    setLoading(false);
+    playSuccessSound();
+    await createActivityLog("SIGN_IN", `Admin signed in successfully: ${trimmedEmail}`);
+    router.push("/logs");
   }
 
   return (
@@ -143,6 +170,7 @@ export default function AdminLoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            minLength={6}
             autoComplete="current-password"
             disabled={loading}
             placeholder="••••••••"
@@ -179,7 +207,7 @@ export default function AdminLoginPage() {
 
         {IS_MOCK && (
           <div className="rounded-xl bg-brand-blue-50 border border-brand-blue-100 p-3.5 text-[11px] text-brand-blue-600 font-semibold text-center leading-relaxed">
-            💡 Local demo configuration. Sign in with:
+            💡 Local demo. Default sign in:
             <br />
             <span className="text-ink-900 font-bold">admin@startuplab.com</span> / <span className="text-ink-900 font-bold">admin123</span>
           </div>
@@ -190,7 +218,7 @@ export default function AdminLoginPage() {
           disabled={loading}
           className="w-full rounded-xl bg-brand-blue-600 py-3.5 font-bold text-white shadow-md shadow-brand-blue-100 transition duration-200 hover:bg-brand-blue-500 active:scale-98 disabled:cursor-not-allowed disabled:opacity-30 cursor-pointer"
         >
-          {loading ? "Verifying Credentials…" : "Sign In"}
+          {loading ? "Please wait…" : "Sign In"}
         </button>
       </form>
 
