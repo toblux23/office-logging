@@ -116,7 +116,6 @@ export default function FilterBar({
             <option value="intern">Intern</option>
             <option value="guest">Guest</option>
             <option value="client">Client</option>
-            <option value="admin">Admin</option>
           </select>
         </div>
 

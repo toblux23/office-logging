@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getLogs, getActivityLogs, createActivityLog, getNameSuggestions } from "@/lib/logs";
+import { getLogs, getActivityLogs, createActivityLog, getNameSuggestions, getAdminConfig, getAdminList, deleteAdmin } from "@/lib/logs";
 import { supabase, IS_MOCK } from "@/lib/supabase";
 import type { LogEntry, LogType, UserRole, AdminActivityLog } from "@/lib/supabase";
 import { playClickSound } from "@/lib/audio";
@@ -12,6 +12,7 @@ import AttendanceTable from "./AttendanceTable";
 import SecurityAuditTable from "./SecurityAuditTable";
 import LogDetailModal from "./LogDetailModal";
 import UserRegistrationPanel from "./UserRegistrationPanel";
+import AdminManagementPanel from "./AdminManagementPanel";
 
 type SortKey = "date-desc" | "date-asc" | "name-asc" | "name-desc";
 type TypeFilter = "all" | LogType;
@@ -24,7 +25,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"attendance" | "security" | "registration">("attendance");
+  const [activeTab, setActiveTab] = useState<"attendance" | "security" | "registration" | "admin-management">("attendance");
   const [securityLogs, setSecurityLogs] = useState<AdminActivityLog[]>([]);
   const [securityLoading, setSecurityLoading] = useState(false);
 
@@ -57,11 +58,19 @@ export default function AdminDashboardPage() {
         .finally(() => setLoading(false));
       getNameSuggestions().then(setNameSuggestions).catch(() => {});
     } else {
-      supabase.auth.getSession().then(({ data: { session } }) => {
+      supabase.auth.getSession().then(async ({ data: { session } }) => {
         if (!session) {
           router.replace("/login");
           return;
         }
+
+        const config = await getAdminConfig(session.user.email).catch(() => null);
+        if (!config) {
+          await supabase.auth.signOut();
+          router.replace("/login");
+          return;
+        }
+
         setAuthChecked(true);
         getLogs()
           .then(async (fetchedLogs) => {
@@ -216,6 +225,12 @@ export default function AdminDashboardPage() {
         >
           👤 User Registration
         </button>
+        <button
+          onClick={() => { playClickSound(); setActiveTab("admin-management"); }}
+          className={`px-5 py-3 text-sm font-bold border-b-2 transition ${activeTab === "admin-management" ? "border-brand-blue-600 text-brand-blue-600" : "border-transparent text-ink-500 hover:text-ink-700"}`}
+        >
+          🔐 Admin Management
+        </button>
       </div>
 
       {error && (
@@ -260,6 +275,10 @@ export default function AdminDashboardPage() {
 
       {activeTab === "registration" && (
         <UserRegistrationPanel />
+      )}
+
+      {activeTab === "admin-management" && (
+        <AdminManagementPanel />
       )}
 
       {selectedLog && (

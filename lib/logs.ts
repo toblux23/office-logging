@@ -1,4 +1,4 @@
-import { supabase, type LogEntry, type LogType, type UserRole, type UserState, type AdminActivityLog, type User, IS_MOCK } from "./supabase";
+import { supabase, type LogEntry, type LogType, type UserRole, type UserState, type AdminConfig, type AdminActivityLog, type User, IS_MOCK } from "./supabase";
 
 const BUCKET = "log-images";
 export type RegistrableRole = Extract<UserRole, "staff" | "intern">;
@@ -31,7 +31,7 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 const WALK_IN_ROLES = new Set<UserRole>(["guest", "client"]);
-const USER_ROLES: UserRole[] = ["staff", "intern", "guest", "client", "admin"];
+const USER_ROLES: UserRole[] = ["staff", "intern", "guest", "client"];
 const REGISTRABLE_ROLES: RegistrableRole[] = ["staff", "intern"];
 
 interface UserProfile {
@@ -219,7 +219,7 @@ function getMockLogs(): LogEntry[] {
         id: crypto.randomUUID(),
         name: "Alice Vance",
         type: "login",
-        role: "admin",
+        role: "staff",
         state: "in_office",
         image_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
         created_at: new Date(nowMs - 86400000 * i - 3600000 * 2).toISOString(),
@@ -824,6 +824,68 @@ export async function createActivityLog(action: string, details: string): Promis
   await supabase
     .from("admin_activity_logs")
     .insert({ action, details });
+}
+
+/** Fetch admin config rows. If email is provided, returns that row or null. */
+export async function getAdminConfig(email?: string): Promise<AdminConfig | null> {
+  if (IS_MOCK) {
+    if (typeof window === "undefined") return null;
+    const stored = localStorage.getItem("mock_admin_config_list");
+    const list: AdminConfig[] = stored
+      ? JSON.parse(stored)
+      : [{ email: "admin@startuplab.com", created_at: new Date().toISOString() }];
+    if (!stored) {
+      localStorage.setItem("mock_admin_config_list", JSON.stringify(list));
+    }
+    if (email) return list.find((a) => a.email === email) ?? null;
+    return list[0] ?? null;
+  }
+
+  let query = supabase.from("admin_config").select("*");
+  if (email) {
+    query = query.eq("email", email);
+  }
+  const { data, error } = await query.maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data as AdminConfig | null;
+}
+
+/** Fetch all admin emails (for the Admin Management panel) */
+export async function getAdminList(): Promise<AdminConfig[]> {
+  if (IS_MOCK) {
+    if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem("mock_admin_config_list");
+    return stored ? JSON.parse(stored) : [];
+  }
+
+  const { data, error } = await supabase
+    .from("admin_config")
+    .select("*")
+    .order("created_at");
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as AdminConfig[];
+}
+
+/** Delete an admin by email (cannot delete yourself). */
+export async function deleteAdmin(email: string): Promise<void> {
+  if (IS_MOCK) {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("mock_admin_config_list");
+    if (!stored) return;
+    const list: AdminConfig[] = JSON.parse(stored);
+    const filtered = list.filter((a) => a.email !== email);
+    localStorage.setItem("mock_admin_config_list", JSON.stringify(filtered));
+    return;
+  }
+
+  const { error } = await supabase
+    .from("admin_config")
+    .delete()
+    .eq("email", email);
+
+  if (error) throw new Error(error.message);
 }
 
 /** Fetch administrative activity audit logs */
