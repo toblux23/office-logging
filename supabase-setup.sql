@@ -114,6 +114,11 @@ insert into storage.buckets (id, name, public)
 values ('log-images', 'log-images', true)
 on conflict (id) do nothing;
 
+-- Drop existing policies (so re-running the script works)
+drop policy if exists "Anyone can upload log images" on storage.objects;
+drop policy if exists "Anyone can read log images" on storage.objects;
+
+-- Recreate policies
 create policy "Anyone can upload log images"
   on storage.objects for insert
   to anon, authenticated
