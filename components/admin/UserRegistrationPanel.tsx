@@ -13,6 +13,7 @@ import {
 import type { RegistrableRole } from "@/lib/logs";
 import type { User, UserState } from "@/lib/supabase";
 import { playClickSound } from "@/lib/audio";
+import Pagination from "./Pagination";
 
 const ROLE_OPTIONS: { value: RegistrableRole; label: string; emoji: string }[] = [
   { value: "staff", label: "Staff", emoji: "👔" },
@@ -333,6 +334,25 @@ export default function UserRegistrationPanel() {
   const [searchFilter, setSearchFilter] = useState("");
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
+  const filteredUsers = searchFilter.trim()
+    ? users.filter((u) =>
+        u.name.toLowerCase().includes(searchFilter.trim().toLowerCase())
+      )
+    : users;
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const paginatedUsers = filteredUsers.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchFilter]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -423,12 +443,6 @@ export default function UserRegistrationPanel() {
     setDeletingUser(null);
     await loadUsers();
   }
-
-  const filteredUsers = searchFilter.trim()
-    ? users.filter((u) =>
-        u.name.toLowerCase().includes(searchFilter.trim().toLowerCase())
-      )
-    : users;
 
   return (
     <div className="z-10 flex flex-col gap-5 animate-fadeIn">
@@ -576,6 +590,7 @@ export default function UserRegistrationPanel() {
             </p>
           </div>
         ) : (
+          <>
           <table className="w-full text-left text-xs sm:text-sm border-collapse">
             <thead className="bg-surface-50 text-ink-500 border-b border-surface-200">
               <tr>
@@ -597,7 +612,7 @@ export default function UserRegistrationPanel() {
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-100">
-              {filteredUsers.map((user) => {
+              {paginatedUsers.map((user) => {
                 const stateBadge = STATE_BADGE[user.state] ?? STATE_BADGE.out_of_office;
                 return (
                   <tr
@@ -653,6 +668,13 @@ export default function UserRegistrationPanel() {
               })}
             </tbody>
           </table>
+          <Pagination
+            currentPage={page}
+            totalItems={filteredUsers.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
+          </>
         )}
       </div>
 
