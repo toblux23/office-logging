@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import CameraCapture from "@/components/shared/CameraCapture";
 import ActionSelector from "./ActionSelector";
 import PersonForm from "./PersonForm";
@@ -138,6 +138,7 @@ export default function LogForm() {
   const saving = status.kind === "saving";
   const canSave = !!action && !!image && people.every((person) => person.name.trim().length > 0) && !saving;
   const actionLabel = action ? ACTION_LABEL[action] : "";
+  const autoResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function chooseAction(type: LogType) {
     playClickSound();
@@ -146,6 +147,10 @@ export default function LogForm() {
   }
 
   function reset() {
+    if (autoResetRef.current) {
+      clearTimeout(autoResetRef.current);
+      autoResetRef.current = null;
+    }
     playClickSound();
     setAction(null);
     setPeople([{ name: "", role: "intern" }]);
@@ -277,7 +282,7 @@ export default function LogForm() {
         welcomeCards,
       });
 
-      setTimeout(reset, 5000);
+      autoResetRef.current = setTimeout(reset, 5000);
     } catch (error) {
       playErrorSound();
       setStatus({
