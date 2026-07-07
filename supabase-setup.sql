@@ -112,7 +112,13 @@ create policy "Admins can delete admin_config"
     and email <> auth.jwt() ->> 'email'
   );
 
--- 5. Storage bucket for photos --------------------------------
+-- 5. Grant permissions for service_role -----------------------
+-- Required so API routes using SUPABASE_SERVICE_ROLE_KEY can access these tables.
+grant usage on schema public to service_role;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
+
+-- 6. Storage bucket for photos --------------------------------
 insert into storage.buckets (id, name, public)
 values ('log-images', 'log-images', true)
 on conflict (id) do nothing;

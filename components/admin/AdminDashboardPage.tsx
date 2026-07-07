@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getLogs, getActivityLogs, createActivityLog, getNameSuggestions, getAdminConfig, getAdminList, deleteAdmin } from "@/lib/logs";
+import { getLogs, getActivityLogs, createActivityLog, getNameSuggestions, getAdminList, deleteAdmin } from "@/lib/logs";
 import { supabase, IS_MOCK } from "@/lib/supabase";
 import type { LogEntry, LogType, UserRole, AdminActivityLog } from "@/lib/supabase";
 import { playClickSound } from "@/lib/audio";
@@ -64,8 +64,20 @@ export default function AdminDashboardPage() {
           return;
         }
 
-        const config = await getAdminConfig(session.user.email).catch(() => null);
-        if (!config) {
+        let isAdmin = false;
+        try {
+          const res = await fetch("/api/admin/verify", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            isAdmin = data.isAdmin;
+          }
+        } catch (err) {
+          console.error("Admin verification error:", err);
+        }
+
+        if (!isAdmin) {
           await supabase.auth.signOut();
           router.replace("/login");
           return;

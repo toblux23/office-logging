@@ -102,9 +102,30 @@ export default function AdminLoginPage() {
       return;
     }
 
-    const adminConfig = await getAdminConfig(signInData.user?.email).catch(() => null);
+    const accessToken = signInData.session?.access_token;
+    if (!accessToken) {
+      setLoading(false);
+      playErrorSound();
+      setError("Session error. Please try again.");
+      return;
+    }
 
-    if (!adminConfig) {
+    let isAdmin = false;
+    try {
+      const res = await fetch("/api/admin/verify", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        isAdmin = data.isAdmin;
+      } else {
+        console.error("Admin verification failed:", await res.text());
+      }
+    } catch (err) {
+      console.error("Admin verification error:", err);
+    }
+
+    if (!isAdmin) {
       await supabase.auth.signOut();
       setLoading(false);
       playErrorSound();

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase, IS_MOCK } from "@/lib/supabase";
-import { getAdminConfig, createActivityLog } from "@/lib/logs";
+import { createActivityLog } from "@/lib/logs";
 import { playClickSound, playSuccessSound, playErrorSound } from "@/lib/audio";
 
 export default function UpdatePasswordPage() {
@@ -33,9 +33,25 @@ export default function UpdatePasswordPage() {
         return;
       }
 
-      const config = await getAdminConfig(data.user.email).catch(() => null);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
 
-      if (!config) {
+      let isAdmin = false;
+      if (accessToken) {
+        try {
+          const res = await fetch("/api/admin/verify", {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (res.ok) {
+            const verifyData = await res.json();
+            isAdmin = verifyData.isAdmin;
+          }
+        } catch (err) {
+          console.error("Admin verification error:", err);
+        }
+      }
+
+      if (!isAdmin) {
         setError("Invalid or expired reset link.");
         setChecking(false);
         return;

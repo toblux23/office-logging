@@ -318,13 +318,20 @@ export async function getStaffInternUsers(): Promise<User[]> {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .in("role", ["staff", "intern"])
-    .order("name");
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Not authenticated");
 
-  if (error) throw new Error(error.message);
+  const res = await fetch("/api/admin/users", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to fetch users (${res.status})`);
+  }
+
+  const data = await res.json();
 
   return ((data ?? []) as User[])
     .map((user) => ({
@@ -809,9 +816,22 @@ export async function createActivityLog(action: string, details: string): Promis
     return;
   }
 
-  await supabase
-    .from("admin_activity_logs")
-    .insert({ action, details });
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) return;
+
+    await fetch("/api/admin/activity-logs", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action, details }),
+    });
+  } catch {
+    // Activity logging is non-critical; silently ignore failures
+  }
 }
 
 /** Fetch admin config rows. If email is provided, returns that row or null. */
@@ -847,13 +867,20 @@ export async function getAdminList(): Promise<AdminConfig[]> {
     return stored ? JSON.parse(stored) : [];
   }
 
-  const { data, error } = await supabase
-    .from("admin_config")
-    .select("*")
-    .order("created_at");
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Not authenticated");
 
-  if (error) throw new Error(error.message);
-  return (data ?? []) as AdminConfig[];
+  const res = await fetch("/api/admin/admin-config", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to fetch admin list (${res.status})`);
+  }
+
+  return res.json();
 }
 
 /** Delete an admin by email (cannot delete yourself). */
@@ -868,12 +895,23 @@ export async function deleteAdmin(email: string): Promise<void> {
     return;
   }
 
-  const { error } = await supabase
-    .from("admin_config")
-    .delete()
-    .eq("email", email);
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Not authenticated");
 
-  if (error) throw new Error(error.message);
+  const res = await fetch("/api/admin/admin-config", {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to delete admin (${res.status})`);
+  }
 }
 
 /** Fetch administrative activity audit logs */
@@ -882,12 +920,18 @@ export async function getActivityLogs(limit = 100): Promise<AdminActivityLog[]> 
     return getMockActivityLogs().slice(0, limit);
   }
 
-  const { data, error } = await supabase
-    .from("admin_activity_logs")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Not authenticated");
 
-  if (error) throw new Error(error.message);
-  return (data ?? []) as AdminActivityLog[];
+  const res = await fetch(`/api/admin/activity-logs?limit=${limit}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to fetch activity logs (${res.status})`);
+  }
+
+  return res.json();
 }
