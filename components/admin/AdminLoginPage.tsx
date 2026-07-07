@@ -136,7 +136,7 @@ export default function AdminLoginPage() {
 
     setLoading(false);
     playSuccessSound();
-    await createActivityLog("SIGN_IN", `Admin signed in successfully: ${trimmedEmail}`);
+    createActivityLog("SIGN_IN", `Admin signed in successfully: ${trimmedEmail}`);
     router.push("/logs");
   }
 

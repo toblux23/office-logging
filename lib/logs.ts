@@ -112,37 +112,20 @@ async function getUserProfile(name: string): Promise<UserProfile | null> {
     };
   }
 
-  const { data: user, error: userError } = await supabase
-    .from("users")
-    .select("name, role, state")
-    .eq("name", name)
-    .maybeSingle();
+  try {
+    const res = await fetch(`/api/kiosk/user-profile?name=${encodeURIComponent(name)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data) return null;
 
-  if (userError) throw new Error(userError.message);
-
-  if (user) {
     return {
-      name: user.name,
-      role: normalizeUserRole(user.role) ?? (user.role as UserRole),
-      state: user.state as UserState,
+      name: data.name,
+      role: normalizeUserRole(data.role) ?? (data.role as UserRole),
+      state: data.state as UserState,
     };
+  } catch {
+    return null;
   }
-
-  const { data: log } = await supabase
-    .from("logs")
-    .select("name, role, state")
-    .eq("name", name)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!log) return null;
-
-  return {
-    name: log.name,
-    role: normalizeUserRole(log.role) ?? (log.role as UserRole),
-    state: log.state as UserState,
-  };
 }
 
 async function validatePerson(name: string, type: LogType, role: UserRole): Promise<ValidatedPerson> {
@@ -368,23 +351,25 @@ export async function registerStaffOrIntern(name: string, role: RegistrableRole)
     return user;
   }
 
-  const { data: existing } = await supabase
-    .from("users")
-    .select("name")
-    .ilike("name", trimmedName)
-    .maybeSingle();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Not authenticated");
 
-  if (existing) {
-    throw new Error(`User "${trimmedName}" already exists. Edit them instead.`);
+  const res = await fetch("/api/admin/users", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name: trimmedName, role: normalizedRole }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to register user (${res.status})`);
   }
 
-  const { data, error } = await supabase
-    .from("users")
-    .insert({ name: trimmedName, role: normalizedRole, state: "out_of_office", updated_at: new Date().toISOString() })
-    .select()
-    .single();
-
-  if (error) throw new Error(error.message);
+  const data = await res.json();
 
   return {
     name: data.name,
@@ -455,20 +440,25 @@ export async function createLog(
     data: { publicUrl },
   } = supabase.storage.from(BUCKET).getPublicUrl(path);
 
-  const { error } = await supabase
-    .from("logs")
-    .insert({ name: validated.name, type, role: validated.role, state: validated.state, image_url: publicUrl });
+  const res = await fetch("/api/kiosk/logs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: validated.name, type, role: validated.role, state: validated.state, image_url: publicUrl }),
+  });
 
-  if (error) {
-    throw new Error(`Saving log failed: ${error.message}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(`Saving log failed: ${body.error || res.statusText}`);
   }
 
-  const { error: upsertError } = await supabase
-    .from("users")
-    .upsert({ name: validated.name, role: validated.role, state: validated.state, updated_at: new Date().toISOString() });
-
-  if (upsertError) {
-    console.error("Failed to update user state:", upsertError.message);
+  try {
+    await fetch("/api/kiosk/upsert-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: validated.name, role: validated.role, state: validated.state }),
+    });
+  } catch (e) {
+    console.error("Failed to update user state:", e);
   }
 
   return {
@@ -551,23 +541,25 @@ export async function createMultipleLogs(
     image_url: publicUrl,
   }));
 
-  const { error } = await supabase
-    .from("logs")
-    .insert(rows);
+  const res = await fetch("/api/kiosk/logs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rows),
+  });
 
-  if (error) {
-    throw new Error(`Saving group logs failed: ${error.message}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(`Saving group logs failed: ${body.error || res.statusText}`);
   }
 
   // Upsert user states for each person
   await Promise.all(
     stateResults.map(p =>
-      (async () => {
-        const { error } = await supabase
-          .from("users")
-          .upsert({ name: p.name, role: p.role, state: p.state, updated_at: new Date().toISOString() });
-        if (error) console.error(`Failed to update state for ${p.name}:`, error.message);
-      })()
+      fetch("/api/kiosk/upsert-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: p.name, role: p.role, state: p.state }),
+      }).catch((e) => console.error(`Failed to update state for ${p.name}:`, e))
     )
   );
 
@@ -682,21 +674,23 @@ export async function deleteUser(name: string): Promise<void> {
     return;
   }
 
-  const { data: toDelete, error: fetchError } = await supabase
-    .from("users")
-    .select("name")
-    .ilike("name", trimmedName)
-    .maybeSingle();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Not authenticated");
 
-  if (fetchError) throw new Error(fetchError.message);
-  if (!toDelete) throw new Error(`User "${trimmedName}" not found.`);
+  const res = await fetch("/api/admin/users", {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name: trimmedName }),
+  });
 
-  const { error } = await supabase
-    .from("users")
-    .delete()
-    .eq("name", toDelete.name);
-
-  if (error) throw new Error(error.message);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to delete user (${res.status})`);
+  }
 }
 
 export async function renameUser(oldName: string, newName: string): Promise<User> {
@@ -726,31 +720,25 @@ export async function renameUser(oldName: string, newName: string): Promise<User
     return users[idx];
   }
 
-  const { data: nameTaken } = await supabase
-    .from("users")
-    .select("name")
-    .ilike("name", trimmedNew)
-    .maybeSingle();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Not authenticated");
 
-  if (nameTaken) throw new Error(`User "${trimmedNew}" already exists.`);
+  const res = await fetch("/api/admin/users", {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name: trimmedOld, newName: trimmedNew }),
+  });
 
-  const { data: found } = await supabase
-    .from("users")
-    .select("name")
-    .ilike("name", trimmedOld)
-    .maybeSingle();
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to rename user (${res.status})`);
+  }
 
-  if (!found) throw new Error(`User "${trimmedOld}" not found.`);
-
-  const { data, error } = await supabase
-    .from("users")
-    .update({ name: trimmedNew, updated_at: new Date().toISOString() })
-    .eq("name", found.name)
-    .select()
-    .single();
-
-  if (error) throw new Error(error.message);
-
+  const data = await res.json();
   return {
     name: data.name,
     role: data.role as UserRole,
@@ -776,23 +764,25 @@ export async function updateUserRole(name: string, newRole: RegistrableRole): Pr
     return users[idx];
   }
 
-  const { data: found } = await supabase
-    .from("users")
-    .select("name")
-    .ilike("name", trimmedName)
-    .maybeSingle();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("Not authenticated");
 
-  if (!found) throw new Error(`User "${trimmedName}" not found.`);
+  const res = await fetch("/api/admin/users", {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name: trimmedName, newRole: normalizedRole }),
+  });
 
-  const { data, error } = await supabase
-    .from("users")
-    .update({ role: normalizedRole, updated_at: new Date().toISOString() })
-    .eq("name", found.name)
-    .select()
-    .single();
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to update role (${res.status})`);
+  }
 
-  if (error) throw new Error(error.message);
-
+  const data = await res.json();
   return {
     name: data.name,
     role: normalizeRegistrableRole(data.role) ?? normalizedRole,
